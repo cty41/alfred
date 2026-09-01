@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Position=0,Mandatory)][ValidateSet('init','doctor','upgrade','new-project','ingest','archive','scan-private','backup')][string]$Command,
+    [Parameter(Position=0,Mandatory)][ValidateSet('init','doctor','upgrade','new-project','ingest','archive','scan-private','check-links','backup')][string]$Command,
     [string]$VaultPath,
     [string]$Name,
     [string]$Source,
@@ -23,6 +23,7 @@ Import-Module (Join-Path $kitPath 'src\Doctor.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Upgrade.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Migration.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\PrivacyScan.psm1') -Force
+Import-Module (Join-Path $kitPath 'src\Links.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Backup.psm1') -Force
 
 try {
@@ -54,6 +55,11 @@ try {
             $scan=Invoke-KbPrivacyScan -Path $scanPath
             $result=New-KbResult -Command 'scan-private' -Status $(if($scan.findings.Count -eq 0){'ok'}else{'issues'}) -State 'N/A' -VaultPath $vault -Issues $scan.findings -Data @{manualReview=$scan.manualReview}
         }
+        'check-links' {
+            if(-not $vault){throw 'Vault not found'}
+            $links=Invoke-KbLinkCheck -VaultPath $vault
+            $result=New-KbResult -Command 'check-links' -Status $(if($links.issues.Count -eq 0){'ok'}else{'issues'}) -State 'N/A' -VaultPath $vault -Issues $links.issues
+        }
         'backup' {
             if(-not $vault -or -not $Destination){throw 'backup requires -Destination'}
             $result=Invoke-KbBackup -VaultPath $vault -Destination $Destination -DryRun:$DryRun
@@ -61,6 +67,7 @@ try {
     }
     Write-KbOutput -Result $result -Json:$Json
     if($result.status -eq 'issues'){exit 2}
+    $global:LASTEXITCODE = 0
 }
 catch {
     $failure=New-KbResult -Command $Command -Status 'error' -State 'UNKNOWN' -VaultPath $VaultPath -Issues @($_.Exception.Message)

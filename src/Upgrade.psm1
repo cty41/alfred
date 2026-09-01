@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'Config.psm1')
 Import-Module (Join-Path $PSScriptRoot 'Reports.psm1')
 
@@ -16,7 +16,9 @@ function Invoke-KbUpgrade {
     Copy-Item -LiteralPath $managed -Destination $backup -Recurse
     Get-ChildItem -LiteralPath $managed -Force | Where-Object {$_.Name -ne 'kit-lock.json'} | Remove-Item -Recurse -Force
     Copy-Item -Path (Join-Path $KitPath 'templates\managed\*') -Destination $managed -Recurse -Force
-    $lock.kitVersion='1.0.0';$lock.appliedAt=(Get-Date).ToString('o');$lock.managedFilesChecksum=Get-KbFileTreeHash $managed
+    $commit = try { (git -C $KitPath rev-parse HEAD 2>$null) } catch { $null }
+    if(-not $commit){$commit='uncommitted'}
+    $lock.kitVersion='1.0.1';$lock.gitCommit=[string]$commit;$lock.appliedAt=(Get-Date).ToString('o');$lock.managedFilesChecksum=Get-KbFileTreeHash $managed
     Write-KbJson $lock $lockPath
     New-KbResult -Command 'upgrade' -Status 'ok' -State 'HEALTHY' -VaultPath $VaultPath -Changes $changes -Data @{backupPath=$backup}
 }

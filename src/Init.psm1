@@ -33,7 +33,7 @@ function Invoke-KbInit {
     Write-KbJson $profile $profilePath
     $commit = try { (git -C $KitPath rev-parse HEAD 2>$null) } catch { $null }
     if(-not $commit){$commit='uncommitted'}
-    $lock = [ordered]@{kitVersion='1.0.0';gitCommit=[string]$commit;appliedAt=(Get-Date).ToString('o');schemaVersion='1.0';managedFilesChecksum=$null}
+    $lock = [ordered]@{kitVersion='1.0.1';gitCommit=[string]$commit;appliedAt=(Get-Date).ToString('o');schemaVersion='1.0';managedFilesChecksum=$null}
     $lockPath = Join-Path $managed 'kit-lock.json'
     Write-KbJson $lock $lockPath
     $lock.managedFilesChecksum = Get-KbFileTreeHash $managed

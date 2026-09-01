@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'Config.psm1')
 Import-Module (Join-Path $PSScriptRoot 'Discovery.psm1')
 Import-Module (Join-Path $PSScriptRoot 'Reports.psm1')
@@ -13,6 +13,10 @@ function Invoke-KbDoctor {
         foreach($name in @('README.md','AGENTS.md','RULES.md','SKILLS.md')){
             if(-not (Test-Path -LiteralPath (Join-Path $state.vaultPath $name))){$issues.Add("Missing root file: $name")}
         }
+        $conflicts=Get-ChildItem -LiteralPath $state.vaultPath -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
+            $_.FullName -notmatch '[\\/]00_System[\\/]reports[\\/]conflicts[\\/]' -and $_.BaseName -match '_\d+月\d+日\d+时\d+分\d+秒$'
+        }
+        foreach($conflict in $conflicts){$issues.Add("Possible Xiaomi sync conflict: $($conflict.FullName)")}
         if(-not $Quick){
             $scan = Invoke-KbPrivacyScan -Path $state.vaultPath
             foreach($f in $scan.findings){$issues.Add("Privacy finding [$($f.category)] $($f.file):$($f.line) $($f.preview)")}
