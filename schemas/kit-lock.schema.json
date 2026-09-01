@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KitLock",
+  "type": "object",
+  "required": ["kitVersion", "gitCommit", "appliedAt", "schemaVersion", "managedFilesChecksum"],
+  "properties": {
+    "kitVersion": {"type": "string"},
+    "gitCommit": {"type": "string"},
+    "appliedAt": {"type": "string"},
+    "schemaVersion": {"type": "string"},
+    "managedFilesChecksum": {"type": "string"}
+  },
+  "additionalProperties": false
+}

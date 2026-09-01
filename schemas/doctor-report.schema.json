@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DoctorReport",
+  "type": "object",
+  "required": ["command", "status", "state", "timestamp", "changes", "issues", "data"],
+  "properties": {
+    "command": {"const": "doctor"},
+    "status": {"type": "string"},
+    "state": {"enum": ["UNCONFIGURED", "DISCOVERED", "LINKED", "HEALTHY", "DEGRADED"]},
+    "vaultPath": {"type": ["string", "null"]},
+    "timestamp": {"type": "string"},
+    "changes": {"type": "array"},
+    "issues": {"type": "array"},
+    "data": {"type": "object"}
+  }
+}

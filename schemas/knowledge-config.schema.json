@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KnowledgeConfig",
+  "type": "object",
+  "required": ["schemaVersion", "controlRepository", "skillsRepository", "managedDirectory", "storageMode"],
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "controlRepository": {"type": "string"},
+    "skillsRepository": {"type": "string"},
+    "managedDirectory": {"type": "string"},
+    "contentLanguage": {"type": "string"},
+    "storageMode": {"type": "string"}
+  },
+  "additionalProperties": false
+}
