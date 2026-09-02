@@ -6,6 +6,7 @@ function Invoke-AlfredInstall {
     param(
         [ValidateSet('web','headless','all')][string]$Profile = 'all',
         [string]$ActivationRoot,
+        [string]$DshCheckout,
         [switch]$DryRun
     )
     $root = Get-AlfredRoot
@@ -17,7 +18,7 @@ function Invoke-AlfredInstall {
         $(if ($ActivationRoot) { 'configure one non-secret activation root' } else { 'leave proactive activation roots unchanged' })
     )
     if ($DryRun) {
-        return New-AlfredResult -Command 'install' -Status 'planned' -Changes $changes -Data @{ profile=$Profile; activationRootConfigured=[bool]$ActivationRoot; writes=$true }
+        return New-AlfredResult -Command 'install' -Status 'planned' -Changes $changes -Data @{ profile=$Profile; activationRootConfigured=[bool]$ActivationRoot; localDshCheckout=[bool]$DshCheckout; writes=$true }
     }
     $issues = [Collections.Generic.List[object]]::new()
     if (-not (Test-Path -LiteralPath $skillsScript -PathType Leaf)) { $issues.Add("installer-missing:skills") }
@@ -29,6 +30,7 @@ function Invoke-AlfredInstall {
         if ($LASTEXITCODE -ne 0) { throw "skills installer exited with code $LASTEXITCODE" }
         $args = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$finScript,'-Profile',$Profile)
         if ($ActivationRoot) { $args += @('-ActivationRoot',$ActivationRoot) }
+        if ($DshCheckout) { $args += @('-DshCheckout',$DshCheckout) }
         & $powerShell @args
         if ($LASTEXITCODE -ne 0) { throw "fin-alfred installer exited with code $LASTEXITCODE" }
         New-AlfredResult -Command 'install' -Status 'ok' -Changes $changes -Data @{profile=$Profile; activationRootConfigured=[bool]$ActivationRoot}

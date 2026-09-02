@@ -5,7 +5,8 @@ param(
     [switch]$DryRun,
     [switch]$Json,
     [ValidateSet('web','headless','all')][string]$Profile = 'all',
-    [string]$ActivationRoot
+    [string]$ActivationRoot,
+    [string]$DshCheckout
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +19,7 @@ Import-Module (Join-Path $PSScriptRoot 'src/Update.psm1') -Force
 $result = switch ($Command) {
     'doctor' { Invoke-AlfredDoctor -Quick:$Quick }
     'bootstrap' { Invoke-AlfredBootstrap -DryRun:$DryRun }
-    'install' { Invoke-AlfredInstall -Profile $Profile -ActivationRoot $ActivationRoot -DryRun:$DryRun }
+    'install' { Invoke-AlfredInstall -Profile $Profile -ActivationRoot $ActivationRoot -DshCheckout $DshCheckout -DryRun:$DryRun }
     'update' { Invoke-AlfredUpdate -DryRun:$DryRun }
 }
 
