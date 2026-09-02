@@ -12,6 +12,10 @@ A Windows-first control plane for an Agent-first, file-based personal knowledge 
 
 All mutating commands support `-DryRun`. Add `-Json` for stable machine-readable output.
 
+## Optional tool collections
+
+A vault may declare portable optional tool collections in `knowledge-config.json`; machine-local checkout paths stay in `~/.config/life-knowledge/profile.json` under `toolCollectionPaths`. `doctor -Json` reports each collection as `available`, `unavailable`, or `unconfigured` with declared intent and entry-point metadata. Collection availability never changes the vault's health state and never exposes the local checkout path in the doctor result.
+
 ## Security boundary
 
 - The repository must contain only generic code, templates and tests.

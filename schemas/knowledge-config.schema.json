@@ -7,6 +7,28 @@
     "schemaVersion": {"type": "string"},
     "controlRepository": {"type": "string"},
     "skillsRepository": {"type": "string"},
+    "toolCollections": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["id", "repository", "intents", "entryPoints"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+          "repository": {"type": "string", "pattern": "^https://github\\.com/"},
+          "intents": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "entryPoints": {
+            "type": "object",
+            "properties": {
+              "skills": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+              "tools": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "managedDirectory": {"type": "string"},
     "contentLanguage": {"type": "string"},
     "storageMode": {"type": "string"}

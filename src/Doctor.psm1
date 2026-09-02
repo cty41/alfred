@@ -22,8 +22,9 @@ function Invoke-KbDoctor {
             foreach($f in $scan.findings){$issues.Add("Privacy finding [$($f.category)] $($f.file):$($f.line) $($f.preview)")}
         }
     }
+    $toolCollections = if($state.vaultPath -and (Test-Path -LiteralPath $state.vaultPath)){@(Get-KbToolCollections -VaultPath $state.vaultPath)}else{@()}
     $finalState = if($issues.Count -eq 0 -and $state.state -eq 'HEALTHY'){'HEALTHY'}elseif($state.state -eq 'UNCONFIGURED'){'UNCONFIGURED'}else{'DEGRADED'}
-    New-KbResult -Command 'doctor' -Status $(if($finalState -eq 'HEALTHY'){'ok'}else{'issues'}) -State $finalState -VaultPath $state.vaultPath -Issues $issues.ToArray() -Data @{quick=[bool]$Quick}
+    New-KbResult -Command 'doctor' -Status $(if($finalState -eq 'HEALTHY'){'ok'}else{'issues'}) -State $finalState -VaultPath $state.vaultPath -Issues $issues.ToArray() -Data @{quick=[bool]$Quick;toolCollections=$toolCollections}
 }
 
 Export-ModuleMember -Function Invoke-KbDoctor
