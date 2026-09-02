@@ -15,6 +15,7 @@ git clone --recurse-submodules https://github.com/cty41/alfred.git
 cd alfred
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 doctor -Quick -Json
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all -ActivationRoot 'D:\path\to\LifeKnowledge' -DshCheckout 'D:\path\to\deepseek-harness' -DryRun -Json
+powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all -ActivationRoot 'D:\path\to\LifeKnowledge' -DshCheckout 'D:\path\to\deepseek-harness'
 ```
 
 `Profile all` 覆盖 Web 与 Headless。真实安装由各子仓自己的安装器执行；总仓不保存模型、Tushare、券商或其他凭据。
