@@ -1,0 +1,5 @@
+.alfred-local.json
+reports/
+*.log
+.DS_Store
+Thumbs.db

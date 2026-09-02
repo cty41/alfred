@@ -1,0 +1,9 @@
+[submodule "repos/knowledge-base-kit"]
+	path = repos/knowledge-base-kit
+	url = https://github.com/cty41/knowledge-base-kit.git
+[submodule "repos/skills"]
+	path = repos/skills
+	url = https://github.com/cty41/skills.git
+[submodule "repos/fin-alfred"]
+	path = repos/fin-alfred
+	url = https://github.com/cty41/fin-alfred.git

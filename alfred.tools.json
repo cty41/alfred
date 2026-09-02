@@ -1,0 +1,30 @@
+{
+  "$schema": "./schemas/alfred-tools.schema.json",
+  "schemaVersion": "1.0",
+  "tools": [
+    {
+      "id": "knowledge-base-kit",
+      "path": "repos/knowledge-base-kit",
+      "repository": "https://github.com/cty41/knowledge-base-kit.git",
+      "role": "control-kit",
+      "verify": "kit-tests",
+      "installCapabilities": ["vault-control"]
+    },
+    {
+      "id": "skills",
+      "path": "repos/skills",
+      "repository": "https://github.com/cty41/skills.git",
+      "role": "skill-pack",
+      "verify": "skills-validate",
+      "installCapabilities": ["user-skills"]
+    },
+    {
+      "id": "fin-alfred",
+      "path": "repos/fin-alfred",
+      "repository": "https://github.com/cty41/fin-alfred.git",
+      "role": "dsh-domain-tool",
+      "verify": "fin-tests",
+      "installCapabilities": ["dsh-bundle-web", "dsh-bundle-headless"]
+    }
+  ]
+}
