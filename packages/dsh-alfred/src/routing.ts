@@ -2,6 +2,19 @@ import { isCapabilityQuestion, matchRoutes, type CapabilityRoute } from './catal
 
 export interface SessionRoutingState { prompted: Set<string>; suppressed: boolean }
 
+export function preferredAddressFromText(text: string): string | undefined {
+  const normalized = text.normalize('NFKC').trim()
+  const patterns = [
+    /(?:^|[\s，。！!？?])(?:以后)?(?:请)?(?:叫我|称呼我为|称呼我|称我为)\s*[「『“"']?([^」』”"'\r\n，。！!？?]{1,80})/u,
+    /(?:^|\s)(?:please\s+)?(?:call|address)\s+me(?:\s+as)?\s+["']?([^"'\r\n,.!?]{1,80})/iu,
+  ]
+  for (const pattern of patterns) {
+    const value = pattern.exec(normalized)?.[1]?.trim()
+    if (value) return value
+  }
+  return undefined
+}
+
 export function directUserText(messages: readonly any[]): string {
   const message = [...messages].reverse().find(row => row?.source?.kind === 'user')
   if (!message) return ''

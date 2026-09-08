@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { apply } from '../src/index.js'
+import { apply, capabilityActionability } from '../src/index.js'
 
 describe('dsh-alfred integration', () => {
   it('registers root-owned tools and direct-user lifecycle hooks', () => {
@@ -14,6 +14,12 @@ describe('dsh-alfred integration', () => {
     } as never, { alfredRoot: process.cwd() })
     expect(tools).toEqual(['alfred_capabilities', 'alfred_set_preferred_address'])
     expect(events).toEqual(['tools/change', 'skills/change', 'agent/session-start', 'agent/pre-step'])
+  })
+
+  it('requires healthy local facts before reporting runtime readiness', () => {
+    expect(capabilityActionability('receipt-stale', false, true)).toBe('receipt-stale')
+    expect(capabilityActionability('runtime-verification-required', false, true)).toBe('ready')
+    expect(capabilityActionability('runtime-verification-required', true, true)).toBe('not-in-current-mode')
   })
 
   it('ships a full Alfred agent-plane composition', () => {
@@ -33,6 +39,7 @@ describe('dsh-alfred integration', () => {
     const address = tools.find(tool => tool.name === 'alfred_set_preferred_address')
     await expect(address.execute({ address: '先生' }, { agent: { session: { meta: { origin: 'subagent' } } } })).rejects.toThrow()
     await expect(address.execute({ address: '先生' }, { agent: { session: { projectionValues: { agentPreset: 'minimal' }, meta: {} } } })).rejects.toThrow()
+    await expect(address.execute({ address: '先生' }, { agent: { session: { id: 'top-level', projectionValues: { agentPreset: 'alfred' }, meta: {} } } })).rejects.toThrow('本轮直接用户')
   })
 
   it('identifies capability routing messages before they can be persisted', async () => {

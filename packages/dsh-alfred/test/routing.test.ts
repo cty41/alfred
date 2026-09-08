@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isCapabilityQuestion, matchRoutes } from '../src/catalog.js'
-import { directUserText, isTopLevelHumanAgent, routeForTurn, routingInstruction } from '../src/routing.js'
+import { directUserText, isTopLevelHumanAgent, preferredAddressFromText, routeForTurn, routingInstruction } from '../src/routing.js'
 
 const human = (text: string) => ({ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] })
 
@@ -29,6 +29,12 @@ describe('ALF capability routing', () => {
     expect(matchRoutes('分析中海当前估值').some(route => route.id === 'investment-strategy-write')).toBe(false)
     expect(matchRoutes('给我一个中海加仓计划和目标仓位').some(route => route.id === 'investment-strategy-write')).toBe(false)
     expect(matchRoutes('ALF 有哪些能力').some(route => route.id === 'investment-strategy-write')).toBe(false)
+  })
+
+  it('extracts a preferred address only from explicit direct wording', () => {
+    expect(preferredAddressFromText('以后请叫我先生')).toBe('先生')
+    expect(preferredAddressFromText('please call me Bruce')).toBe('Bruce')
+    expect(preferredAddressFromText('你觉得应该怎么称呼我')).toBeUndefined()
   })
 
   it('reads only the latest direct user turn', () => {

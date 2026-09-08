@@ -37,8 +37,18 @@ function Emit([System.Collections.IDictionary]$Result) {
     }
 }
 
+function Wait-DshWebStart($Process,[int]$Attempts=60) {
+    for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+        if (@(Get-DshWebProcess).Count -gt 0) { return $true }
+        if ($Process -and $Process.HasExited) { return $false }
+        Start-Sleep -Milliseconds 250
+    }
+    [bool](@(Get-DshWebProcess).Count -gt 0)
+}
+
 $restartNeeded = $false
 $launchArguments = $null
+$started = $null
 try {
     if ([string]::IsNullOrWhiteSpace($AlfredCheckout)) { $AlfredCheckout = Split-Path -Parent $PSScriptRoot }
     if ([string]::IsNullOrWhiteSpace($DshCheckout)) { $DshCheckout = Join-Path (Split-Path -Parent $AlfredCheckout) 'deepseek-harness' }
@@ -94,12 +104,7 @@ try {
     }
 
     $started = Start-Process -FilePath $powerShell -ArgumentList $launchArguments -WindowStyle Hidden -PassThru
-    $restarted = $false
-    for ($attempt = 0; $attempt -lt 60; $attempt++) {
-        if (@(Get-DshWebProcess).Count -gt 0) { $restarted = $true; break }
-        if ($started.HasExited) { break }
-        Start-Sleep -Milliseconds 250
-    }
+    $restarted = Wait-DshWebStart $started
     if (-not $restarted) {
         $restartExitCode = if ($started.HasExited) { $started.ExitCode } else { $null }
         throw "restart-failed:$restartExitCode"
@@ -110,7 +115,14 @@ try {
     $failure = if ($_.Exception.Data.Contains('Failure')) { $_.Exception.Data['Failure'] } else { $null }
     $restartRecovery='not-required'
     if($restartNeeded -and $launchArguments){
-        try{Start-Process -FilePath $powerShell -ArgumentList $launchArguments -WindowStyle Hidden|Out-Null;$restartRecovery='attempted'}catch{$restartRecovery='failed'}
+        try{
+            if(@(Get-DshWebProcess).Count -gt 0){$restartRecovery='verified'}
+            elseif($started -and -not $started.HasExited){$restartRecovery=if(Wait-DshWebStart $started 60){'verified-late'}else{'failed-running-without-listener'}}
+            else{
+                $recoveryProcess=Start-Process -FilePath $powerShell -ArgumentList $launchArguments -WindowStyle Hidden -PassThru
+                $restartRecovery=if(Wait-DshWebStart $recoveryProcess 60){'verified'}else{'failed'}
+            }
+        }catch{$restartRecovery='failed'}
     }
     Emit ([ordered]@{command='upgrade-and-restart-dsh';status='failed';changes=@();issues=@($_.Exception.Message);data=@{automaticRetry=$false;failure=$failure;restartRecovery=$restartRecovery}})
     exit 1

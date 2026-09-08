@@ -1,4 +1,4 @@
-# Full agent-plane composition for the Alfred preset. Host-plane services remain in DSH.
+# Managed by dsh-alfred. Full agent-plane composition; host-plane services remain in DSH.
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:

@@ -5,7 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import { loadRoutes } from './catalog.js'
 import { CapabilityProbe, defaultAlfredRoot } from './probe.js'
 import { readPreferences, writePreferredAddress } from './preferences.js'
-import { directUserText, isTopLevelHumanAgent, routeForTurn, routingInstruction, type SessionRoutingState } from './routing.js'
+import { directUserText, isTopLevelHumanAgent, preferredAddressFromText, routeForTurn, routingInstruction, type SessionRoutingState } from './routing.js'
 
 export const name = 'dsh-alfred'
 export const inject = ['tools', 'skills']
@@ -31,6 +31,12 @@ function textOutput() {
 function sessionKey(agent: any): string { return String(agent?.session?.id ?? agent?.id ?? 'unknown') }
 function presetOf(agent: any): string { return String(agent?.session?.projectionValues?.agentPreset ?? agent?.session?.meta?.agentPreset ?? agent?.session?.header?.agentPreset ?? '') }
 
+export function capabilityActionability(localActionability: unknown, excluded: boolean, runtimeVisible: boolean): string {
+  if (excluded) return 'not-in-current-mode'
+  if (localActionability !== 'runtime-verification-required') return typeof localActionability === 'string' ? localActionability : 'local-facts-unavailable'
+  return runtimeVisible ? 'ready' : 'setup-required'
+}
+
 export function apply(ctx: Context, config: ControlConfig = {}): void {
   const runtime = ctx as Context & {
     tools: { register(value: unknown): unknown; schemas(agent?: unknown): Array<{ name: string }> }
@@ -42,6 +48,7 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
   const routes = loadRoutes(root)
   const excluded = new Set(config.excludedPresets ?? ['minimal'])
   const sessions = new Map<string, SessionRoutingState>()
+  const addressAuthorizations = new Map<string, { turnId: string; address: string; consumed: boolean }>()
 
   async function capabilityView(agent: any, signal?: AbortSignal): Promise<unknown> {
     const [base, skills] = await Promise.all([
@@ -50,6 +57,8 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
     ])
     const visibleSkills = new Set(skills.map(skill => skill.name))
     const visibleTools = new Set(runtime.tools.schemas(agent).map(tool => tool.name))
+    const localRows = Array.isArray((base as any)?.data?.capabilities) ? (base as any).data.capabilities : []
+    const localById = new Map(localRows.map((row: any) => [String(row.id), row]))
     const capabilities = routes.map(route => {
       const skillsExpected = route.skills
       const toolsExpected = route.tools
@@ -58,6 +67,7 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
       const hasExpected = [...skillVisibility, ...toolVisibility]
       const runtimeVisible = hasExpected.length > 0 && hasExpected.every(row => row.visible)
       const partiallyVisible = !runtimeVisible && hasExpected.some(row => row.visible)
+      const local = localById.get(route.id) as any
       return {
         id: route.id,
         module: route.module,
@@ -66,7 +76,7 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
         runtimeVisibility: excluded.has(presetOf(agent)) ? 'excluded-mode' : runtimeVisible ? 'visible' : partiallyVisible ? 'partial' : 'not-visible',
         entryPoints: { skills: skillVisibility, tools: toolVisibility },
         mutationPolicy: route.mutation,
-        actionability: excluded.has(presetOf(agent)) ? 'not-in-current-mode' : runtimeVisible ? 'ready' : 'setup-required',
+        actionability: capabilityActionability(local?.actionability, excluded.has(presetOf(agent)), runtimeVisible),
       }
     })
     return {
@@ -96,7 +106,11 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
     output: textOutput(),
     execute: async (args, exec) => {
       if (!isTopLevelHumanAgent(exec.agent) || excluded.has(presetOf(exec.agent))) throw new Error('称呼偏好只能由当前非排除模式的顶层用户会话保存。')
-      return JSON.stringify({ ok: true, preferences: writePreferredAddress(args.address) })
+      const authorization = addressAuthorizations.get(sessionKey(exec.agent))
+      const requested = String(args.address).trim()
+      if (!authorization || authorization.consumed || authorization.address !== requested) throw new Error('本轮直接用户没有明确授权保存这一称呼。')
+      authorization.consumed = true
+      return JSON.stringify({ ok: true, preferences: writePreferredAddress(requested) })
     },
   }))
 
@@ -105,7 +119,10 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
   runtime.on('agent/session-start', ({ agent, source }: any) => {
     if (excluded.has(presetOf(agent)) || !isTopLevelHumanAgent(agent)) return
     const key = sessionKey(agent)
-    if (source === 'startup' || source === 'clear' || !sessions.has(key)) sessions.set(key, { prompted: new Set(), suppressed: false })
+    if (source === 'startup' || source === 'clear' || !sessions.has(key)) {
+      sessions.set(key, { prompted: new Set(), suppressed: false })
+      addressAuthorizations.delete(key)
+    }
     const preferred = presetOf(agent) === 'alfred' ? readPreferences().preferredAddress : undefined
     const persona = presetOf(agent) !== 'alfred'
       ? ''
@@ -126,6 +143,13 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
     const text = directUserText(messages)
     if (!text) return downstream
     const key = sessionKey(agent)
+    const directMessage = [...messages].reverse().find((message: any) => message?.source?.kind === 'user')
+    const turnId = String(directMessage?.id ?? `${messages.length}:${text}`)
+    if (addressAuthorizations.get(key)?.turnId !== turnId) {
+      const address = preferredAddressFromText(text)
+      if (address) addressAuthorizations.set(key, { turnId, address, consumed: false })
+      else addressAuthorizations.delete(key)
+    }
     const state = sessions.get(key) ?? { prompted: new Set<string>(), suppressed: false }
     sessions.set(key, state)
     const instruction = routingInstruction(routeForTurn(text, state, routes))
@@ -144,4 +168,4 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
 
 export { ROUTES, loadRoutes, isCapabilityQuestion, matchRoutes } from './catalog.js'
 export { preferencesPath, readPreferences, writePreferredAddress } from './preferences.js'
-export { directUserText, isTopLevelHumanAgent, routeForTurn, routingInstruction } from './routing.js'
+export { directUserText, isTopLevelHumanAgent, preferredAddressFromText, routeForTurn, routingInstruction } from './routing.js'
