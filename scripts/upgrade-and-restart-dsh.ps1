@@ -46,6 +46,7 @@ try {
     $dsh = [IO.Path]::GetFullPath($DshCheckout)
     $alfredScript = Join-Path $alfred 'alfred.ps1'
     $startScript = Join-Path $alfred 'scripts/start-dsh-web.ps1'
+    $powerShell = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
     if (-not (Test-Path -LiteralPath $alfredScript -PathType Leaf)) { throw 'alfred-checkout-invalid' }
     if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) { throw 'start-script-missing' }
     $quotedStartScript = $startScript.Replace("'", "''")
@@ -56,7 +57,7 @@ try {
     $launchArguments = @('-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',$encodedLaunchCommand)
 
     $changes = @('stop only matching DSH web processes','install Alfred and Fin Value into the web profile','restart the existing DSH web profile')
-    $previewText = (& powershell -NoProfile -ExecutionPolicy Bypass -File $alfredScript install -Profile web -DshCheckout $dsh -DryRun -Json) -join "`n"
+    $previewText = (& $powerShell -NoProfile -ExecutionPolicy Bypass -File $alfredScript install -Profile web -DshCheckout $dsh -DryRun -Json) -join "`n"
     if ($LASTEXITCODE -ne 0) { throw 'install-dry-run-failed' }
     try { $preview = $previewText | ConvertFrom-Json } catch { throw 'install-dry-run-returned-invalid-json' }
     if (-not $Json) { $previewText | Write-Host }
@@ -82,7 +83,7 @@ try {
     foreach ($process in $processes) { Wait-Process -Id $process.ProcessId -Timeout 15 -ErrorAction SilentlyContinue }
     if (@(Get-DshWebProcess).Count -gt 0) { throw 'dsh-web-did-not-stop; install was not started' }
     $restartNeeded=$processes.Count -gt 0
-    $installText = (& powershell -NoProfile -ExecutionPolicy Bypass -File $alfredScript install -Profile web -DshCheckout $dsh -Json) -join "`n"
+    $installText = (& $powerShell -NoProfile -ExecutionPolicy Bypass -File $alfredScript install -Profile web -DshCheckout $dsh -Json) -join "`n"
     $installExitCode = $LASTEXITCODE
     try { $installResult = $installText | ConvertFrom-Json } catch { throw 'install-returned-invalid-json; DSH Web was not restarted' }
     if ($installExitCode -ne 0) {
@@ -92,7 +93,7 @@ try {
         throw $exception
     }
 
-    $started = Start-Process -FilePath 'powershell' -ArgumentList $launchArguments -WindowStyle Hidden -PassThru
+    $started = Start-Process -FilePath $powerShell -ArgumentList $launchArguments -WindowStyle Hidden -PassThru
     $restarted = $false
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
         if (@(Get-DshWebProcess).Count -gt 0) { $restarted = $true; break }
@@ -109,7 +110,7 @@ try {
     $failure = if ($_.Exception.Data.Contains('Failure')) { $_.Exception.Data['Failure'] } else { $null }
     $restartRecovery='not-required'
     if($restartNeeded -and $launchArguments){
-        try{Start-Process -FilePath 'powershell' -ArgumentList $launchArguments -WindowStyle Hidden|Out-Null;$restartRecovery='attempted'}catch{$restartRecovery='failed'}
+        try{Start-Process -FilePath $powerShell -ArgumentList $launchArguments -WindowStyle Hidden|Out-Null;$restartRecovery='attempted'}catch{$restartRecovery='failed'}
     }
     Emit ([ordered]@{command='upgrade-and-restart-dsh';status='failed';changes=@();issues=@($_.Exception.Message);data=@{automaticRetry=$false;failure=$failure;restartRecovery=$restartRecovery}})
     exit 1
