@@ -46,6 +46,17 @@
 - Automated evidence: preset availability 和 Web slots 已测试；当前 GUI 尚未重启加载新 bundle。
 - User verdict: none
 
+### MQA-FIN-RESEARCH-ARCHIVE
+- Status: `pending`
+- Source: Xiaomi Cloud research archive implementation, commits `f386446` and `7b5898d`, 2026-09-08
+- Action: 不要在承载当前会话的DSH Web内停止服务。先从独立终端升级并重启现有Web profile，刷新`http://127.0.0.1:3080`后新建Standard会话并首次请求“分析中海当前价值”。核对系统先只读检查资料库状态、自动建议检测到的`FinValueResearch`目录并显示预览，且本轮不写配置；下一轮明确回复“确认启用研究资料库”，再检查状态并继续研究。随后查看中海已有资料列表、读取一个TXT/CSV/JSON提取物；在下一次确有新官方PDF证据的真实研究中观察自动归档。
+- Expected: 新会话可见六个archive工具和更新后的Skill；首次请求只执行status/prepare，下一轮确认后commit且无需再次重启；状态变为ready，列表不暴露绝对路径，文本按opaque documentId有界读取，PDF只列元数据。自动新增仅接受allowlist官方HTTPS PDF，重复为duplicate、同名异内容为conflict，绝不覆盖或删除。
+- Observe: DSH Web工具清单、工具调用卡片、预览/确认消息、浏览器Console，以及小米云`FinValueResearch`目录新增文件；不要以云客户端图标推断已经上传完成。
+- Preserve on failure: session id、完整工具名、脱敏后的status/preview/error、截图、Console日志和目标目录相对文件名；不要复制绝对本机配置路径、账号密码、token或券商凭据。
+- Save boundary: status、prepare、list、read均只读；只有下一轮直接用户确认可创建本机配置。该确认仅长期授权追加受信官方PDF，不授权删除、覆盖、改根目录、任意下载、策略保存、成交或账本修改。
+- Automated evidence: Fin Value typecheck、18个测试文件148项测试、完整build、19项Python adapter测试、package dry-run和Skill validator通过；SSRF连接绑定、redirect逐跳校验、50 MiB/PDF校验、token轮次/会话/过期/重放、subagent写拒绝、既存junction拒绝、abort/timeout与duplicate/conflict均有测试。Alfred 20项测试、build、package dry-run和根PowerShell测试通过；doctor仅报告已知无关的dirty `knowledge-base-kit`。当前3080按边界未重启，因此运行时可见性与真实交互仍需人工确认。
+- User verdict: none
+
 ### MQA-FIN-PRIVATE-PERSISTENCE
 - Status: `pending`
 - Source: Fin Value direct strategy save implementation, 2026-09-06
@@ -72,9 +83,10 @@
 
 ## Last Emitted Order
 
-1. `MQA-ALF-SESSION-REPAIR`
-2. `MQA-ALF-PROACTIVE-ROUTING`
-3. `MQA-ALF-WEB-FULL`
-4. `MQA-ALF-WEB-MINIMAL`
-5. `MQA-FIN-PRIVATE-PERSISTENCE`
-6. `MQA-ALF-HEADLESS-RUNTIME`
+1. `MQA-FIN-RESEARCH-ARCHIVE`
+2. `MQA-ALF-SESSION-REPAIR`
+3. `MQA-ALF-PROACTIVE-ROUTING`
+4. `MQA-ALF-WEB-FULL`
+5. `MQA-ALF-WEB-MINIMAL`
+6. `MQA-FIN-PRIVATE-PERSISTENCE`
+7. `MQA-ALF-HEADLESS-RUNTIME`
