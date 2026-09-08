@@ -64,6 +64,7 @@ function Read-AlfredManifest {
         'project-documentation'=@{module='skills';skills=@('project-doc-organization');tools=@();commands=@();mutation='workflow-dependent'}
         'skill-authoring'=@{module='skills';skills=@('skill-writing');tools=@();commands=@();mutation='workflow-dependent'}
         'hk-equity-research'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_stock_quote','fin_value_stock_fundamentals','fin_value_financial_statements','fin_value_value_strategy');commands=@();mutation='read-only'}
+        'investment-research-archive'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_research_archive_status','fin_value_prepare_research_archive','fin_value_commit_research_archive','fin_value_research_sources','fin_value_read_research_source','fin_value_archive_official_document');commands=@();mutation='confirm-before-write'}
         'investment-portfolio'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_portfolio_context');commands=@();mutation='read-only'}
         'investment-strategy-write'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_save_portfolio_strategy');commands=@();mutation='workflow-dependent'}
         'investment-ledger'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_prepare_execution','fin_value_commit_execution','fin_value_prepare_initial_position','fin_value_commit_initial_position');commands=@();mutation='confirm-before-write'}

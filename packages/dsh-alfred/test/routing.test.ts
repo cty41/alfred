@@ -18,6 +18,16 @@ describe('ALF capability routing', () => {
     expect(matched[0]?.id).toBe('investment-portfolio')
   })
 
+  it('pairs HK research with the one-confirmation research archive workflow', () => {
+    const matched = matchRoutes('分析港股中海的财报和估值')
+    expect(matched.map(route => route.id)).toEqual(['hk-equity-research', 'investment-research-archive'])
+    const state = { prompted: new Set<string>(), suppressed: false }
+    const instruction = routingInstruction(routeForTurn('分析港股中海的财报和估值', state))
+    expect(instruction).toContain('fin_value_research_archive_status first')
+    expect(instruction).toContain('hint itself authorizes no write')
+    expect(routeForTurn('继续分析港股中海', state).routes).toEqual([])
+  })
+
   it('routes concrete strategy persistence to Fin Value instead of general knowledge storage', () => {
     const matched = matchRoutes('把中海的加仓计划和目标仓位记录下来')
     expect(matched[0]?.id).toBe('investment-strategy-write')

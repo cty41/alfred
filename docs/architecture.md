@@ -48,14 +48,14 @@ CLI probe 不伪装成 runtime verification，也不执行子模块代码；DSH 
 
 `dsh-alfred` 仅处理顶层 `source.kind === 'user'` 的直接用户输入，并排除 subagent、tool/plugin 注入及自动 continuation。匹配对 `ALF` 使用 token boundary，不做裸 substring；每轮最多两项，同一 capability 在一个 session 中只提示一次。会话 resume/compact 保留去重状态，新 session 清空。用户可在当前 session 禁用提示。
 
-路由仅建议相关 Skill/tool 或调用 `alfred_capabilities`；建议本身不授权安装、迁移、账本写入或其他 mutation。`minimal` 不安装 ALF 控制层，完整 presets 全局可用，不依赖工作区路径。
+路由仅建议相关 Skill/tool 或调用 `alfred_capabilities`；建议本身不授权安装、迁移、账本写入或其他 mutation。港股研究首次路由会要求Fin Value先只读检查研究资料库状态；未配置时只能prepare预览，下一轮直接用户确认后才能commit。`minimal` 不安装 ALF 控制层，完整 presets 全局可用，不依赖工作区路径。
 
 ## Ownership boundaries
 
 - **Alfred/ALF**：persona、能力目录、主动路由、Web 入口、称呼偏好。
 - **knowledge-base-kit**：通用 vault 控制和非递归 capability status；不依赖 Alfred。
 - **skills**：通用用户 Skills；不放 Alfred 项目内容。
-- **Fin Value**：港股数据、估值、持仓、版本化建仓/减仓/清仓策略及确认式ledger write；策略仅在直接用户明确要求保存完整方案时一次性原子写入，具体股票的实时策略只能以Fin Value私有数据库为权威来源，不拥有Alfred persona/help/routing。
+- **Fin Value**：港股数据、估值、持仓、版本化建仓/减仓/清仓策略、确认式ledger write及小米云研究资料库；它拥有资料库检测、确认配置、只读查询和受限官方PDF新增，不拥有Alfred persona/help/routing。策略仅在直接用户明确要求保存完整方案时一次性原子写入，具体股票的实时策略只能以Fin Value私有数据库为权威来源。
 - **LifeKnowledge**：可保存非权威投资理由和长期方法论，但不维护具体股票目标仓位、触发线或执行进度的第二事实源。
 
 Fin Value 运行时是 breaking rename：bundle `dsh-fin-value`、Skill `fin-value-investment-research`、tools `fin_value_*`，无旧 plugin/tool aliases。策略只公开`fin_value_save_portfolio_strategy`，能力提示、研究建议、预览或迁移提示不授权写入；真实成交和初始持仓的prepare/commit仍保持跨轮明确确认、token绑定/过期/单次使用和SQLite原子事务边界。
@@ -65,6 +65,7 @@ Fin Value 运行时是 breaking rename：bundle `dsh-fin-value`、Skill `fin-val
 - ALF 称呼偏好：Windows application data、macOS `~/Library/Application Support/alfred`、Linux XDG 路径；不触碰投资账本。
 - Fin Value ledger：对应平台的 `fin-value/fin-value.db`；市场 cache 与 ledger 分离。
 - Fin Value私有快照：snapshot/report路径由Fin Value安装器的显式本机参数配置；Alfred umbrella不读取vault配置或自动推导私人路径。活跃SQLite仍留在本地，云端只接收校验完成的封闭副本和非权威HTML阅读报告。
+- Fin Value研究资料库：首次港股研究由ALF提示，Fin Value自动检测固定小米云候选；配置只在预览后的下一轮确认写入平台本机数据目录，立即生效。长期授权仅允许向确认根目录新增受信官方HTTPS PDF，不代表小米云同步成功，也不授权覆盖、删除或任意下载。
 - receipts：仅记录 checkout commit、gitlinks、profiles 和安装时间，不保存 path/token/profile 内容。
 
 旧本地状态迁移要求停止相关 profiles，拒绝覆盖目标；Fin Value只迁移投资账本，先checkpoint，再用SQLite `VACUUM INTO`复制并执行integrity check。市场缓存重建，报告原地保留；称呼偏好由Alfred/ALF独立拥有，不由Fin Value迁移。secrets只在本机profile patch内保留且不输出，pending confirmation tokens失效。历史DSH sessions不重写，仍按历史tool name只读查看。

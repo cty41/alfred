@@ -19,6 +19,8 @@ Windows日常使用可双击`start-dsh-web.cmd`；它检测到Web已运行时不
 
 `dsh-alfred` 提供 ALF persona、`alfred_capabilities`、称呼偏好、意图路由和 Web 能力入口；`fin-value` 只提供港股研究与确认式账本能力。Fin Value 的运行时名称为 `dsh-fin-value` / `fin-value-investment-research` / `fin_value_*`，不保留旧别名。
 
+首次港股研究时，ALF会触发Fin Value只读检查小米云研究资料库。未配置时自动检测并展示预览，用户下一轮确认后才创建目录并保存本机授权；配置立即生效，无需手工编辑DSH profile。官方PDF只能新增到已确认目录，不覆盖、删除或进入Git。
+
 macOS 路径和 venv `bin/python` 已做 Windows 参数化模拟测试，仍属于 best-effort、未实机验证。GitHub 的 `fin-alfred` 远端改名是独立外部操作，须另行明确确认。
 
 详见 [`README.md`](README.md)、[`docs/architecture.md`](docs/architecture.md) 与 [`SECURITY.md`](SECURITY.md)。

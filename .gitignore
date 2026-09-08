@@ -6,3 +6,15 @@ Thumbs.db
 node_modules/
 packages/*/dist/
 *.tsbuildinfo
+
+# Research originals and transient download artifacts belong outside the ALF control-plane checkout.
+/.research/
+/research/
+/*.pdf
+/*.pdf.txt
+/*.html
+/*.jsonp
+/moodys-*.js
+/sse-*.js
+/tmp_*
+/presentation_p*.png

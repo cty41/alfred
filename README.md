@@ -48,6 +48,8 @@ macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/p
 
 ALF 只针对顶层直接用户消息做 token-aware 意图匹配，每轮最多提示两个能力，同一会话每项只提示一次。工具消息、插件注入、子 Agent 和自动 continuation 不会触发；提示不构成安装、迁移或写入授权。
 
+首次进行港股研究时，ALF会让Fin Value只读检查小米云研究资料库。未配置时，Fin Value自动检测固定候选目录并生成预览；用户下一轮确认后才创建资料库并保存本机授权，立即生效且无需重启。后续自动归档只允许向已确认目录新增受信官方PDF，不覆盖、删除或接入小米云账号/API。实际路径和财报文件不进入本仓库。
+
 ## Fin Value 迁移
 
 领域标识已 breaking rename 为 `fin-value` / `dsh-fin-value` / `fin_value_*`，不提供旧工具或插件别名。迁移本机账本与称呼偏好前先停止相关 DSH profiles：
