@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"Alfred redacted capability command envelope",
+  "type":"object",
+  "required":["command","status","timestamp","changes","issues","data"],
+  "properties":{
+    "command":{"const":"capabilities"},
+    "status":{"enum":["ok","issues","failed"]},
+    "timestamp":{"type":"string"},
+    "changes":{"type":"array"},
+    "issues":{"type":"array"},
+    "data":{"type":"object","required":["schemaVersion","scope","capabilities","privacy"],"properties":{
+      "schemaVersion":{"const":"1.0"},
+      "scope":{"const":"local-installation"},
+      "privacy":{"type":"string"},
+      "capabilities":{"type":"array","items":{"type":"object","required":["id","module","summary","entryPoints","mutationPolicy","facets","actionability","reasonCodes"],"properties":{
+        "id":{"type":"string"},"module":{"type":"string"},"summary":{"type":"string"},"entryPoints":{"type":"object"},
+        "mutationPolicy":{"enum":["read-only","confirm-before-write","workflow-dependent"]},
+        "facets":{"type":"object","required":["declaration","source","build","installation","runtimeVisibility","configuration","health","freshness"]},
+        "actionability":{"enum":["unavailable","source-attention-required","bootstrap-required","install-status-unknown","attention-required","runtime-verification-required"]},
+        "reasonCodes":{"type":"array","items":{"type":"string"}}
+      },"additionalProperties":false}}
+    },"additionalProperties":false}
+  },
+  "additionalProperties":false
+}

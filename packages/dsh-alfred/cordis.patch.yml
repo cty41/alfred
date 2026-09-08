@@ -1,0 +1,4 @@
+# Adds the ALF capability discovery and routing control plane.
+- insert:
+    - id: dsh-alfred
+      name: dsh-alfred

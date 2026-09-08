@@ -1,0 +1,25 @@
+{
+  "name": "alfred-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/dsh-alfred"
+  ],
+  "scripts": {
+    "build": "tsc -b && npm run client:build --workspace dsh-alfred",
+    "typecheck": "tsc -b --pretty false && npm run client:typecheck --workspace dsh-alfred",
+    "test": "vitest run",
+    "clean": "tsc -b --clean"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "~18.3.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

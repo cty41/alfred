@@ -16,7 +16,7 @@ function Invoke-AlfredDoctor {
     catch { return New-AlfredResult -Command 'doctor' -Status 'failed' -Issues @($_.Exception.Message) }
 
     foreach ($tool in @($manifest.tools)) {
-        $path = Join-Path $root ([string]$tool.path)
+        $path = Resolve-AlfredToolPath -Tool $tool -Root $root
         $present = Test-Path -LiteralPath $path -PathType Container
         $gitFile = Join-Path $path '.git'
         $initialized = $present -and (Test-Path -LiteralPath $gitFile)
@@ -25,10 +25,10 @@ function Invoke-AlfredDoctor {
         if ($initialized) {
             $status = @(& git -C $path status --porcelain 2>$null)
             $dirty = $status.Count -gt 0
+            if($dirty){$issues.Add("submodule-dirty:$($tool.id)")}
             $head = (& git -C $path rev-parse HEAD 2>$null)
         }
         if (-not $initialized) { $issues.Add("submodule-not-initialized:$($tool.id)") }
-        elseif ($dirty) { $issues.Add("submodule-dirty:$($tool.id)") }
         $tools.Add([ordered]@{ id=[string]$tool.id; path=[string]$tool.path; initialized=$initialized; dirty=$dirty; head=$head })
     }
 

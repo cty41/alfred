@@ -1,30 +1,42 @@
 {
   "$schema": "./schemas/alfred-tools.schema.json",
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "tools": [
     {
       "id": "knowledge-base-kit",
       "path": "repos/knowledge-base-kit",
       "repository": "https://github.com/cty41/knowledge-base-kit.git",
       "role": "control-kit",
-      "verify": "kit-tests",
-      "installCapabilities": ["vault-control"]
+      "operations": {"bootstrap":"knowledge-base-kit.bootstrap","verify":"knowledge-base-kit.verify","probe":"knowledge-base-kit.probe"},
+      "provides": ["vault-control"]
     },
     {
       "id": "skills",
       "path": "repos/skills",
       "repository": "https://github.com/cty41/skills.git",
       "role": "skill-pack",
-      "verify": "skills-validate",
-      "installCapabilities": ["user-skills"]
+      "operations": {"bootstrap":"skills.bootstrap","verify":"skills.verify","install":"skills.install","probe":"skills.probe"},
+      "provides": ["user-skills"]
     },
     {
-      "id": "fin-alfred",
-      "path": "repos/fin-alfred",
+      "id": "fin-value",
+      "path": "repos/fin-value",
       "repository": "https://github.com/cty41/fin-alfred.git",
       "role": "dsh-domain-tool",
-      "verify": "fin-tests",
-      "installCapabilities": ["dsh-bundle-web", "dsh-bundle-headless"]
+      "operations": {"bootstrap":"fin-value.bootstrap","verify":"fin-value.verify","install":"fin-value.install","probe":"fin-value.probe"},
+      "provides": ["dsh-bundle-web", "dsh-bundle-headless"]
     }
+  ],
+  "capabilities": [
+    {"id":"life-knowledge","module":"knowledge-base-kit","summary":"保存、整理、迁移或归档持续性的个人知识","keywords":["保存这段对话","整理这段对话","归档","个人知识库","知识库健康","remember this","save this conversation"],"entryPoints":{"skills":["life-knowledge"],"tools":[],"commands":[]},"mutationPolicy":"workflow-dependent"},
+    {"id":"project-knowledge","module":"skills","summary":"查询、摄取和维护项目知识索引","keywords":["知识索引","项目知识","维护知识","okf","knowledge index"],"entryPoints":{"skills":["knowledge-maintenance"],"tools":[],"commands":[]},"mutationPolicy":"workflow-dependent"},
+    {"id":"development-design","module":"skills","summary":"把模糊需求收束为设计和可执行开发计划","keywords":["头脑风暴","需求不清楚","开发计划","任务拆分","设计方案","implementation plan"],"entryPoints":{"skills":["brainstorming","make-dev-plan","plan-mode-plan-writer"],"tools":[],"commands":[]},"mutationPolicy":"workflow-dependent"},
+    {"id":"manual-qa","module":"skills","summary":"维护 UI、交互和体验类人工验收记录","keywords":["人工验收","手动测试","视觉验收","manual qa"],"entryPoints":{"skills":["manual-qa-handoff"],"tools":[],"commands":[]},"mutationPolicy":"workflow-dependent"},
+    {"id":"project-documentation","module":"skills","summary":"组织设计文档、计划和项目说明","keywords":["整理文档","移动文档","设计文档","项目文档"],"entryPoints":{"skills":["project-doc-organization"],"tools":[],"commands":[]},"mutationPolicy":"workflow-dependent"},
+    {"id":"skill-authoring","module":"skills","summary":"创建或维护渐进披露的 Agent Skill","keywords":["创建 skill","编写 skill","修改 skill","agent skill"],"entryPoints":{"skills":["skill-writing"],"tools":[],"commands":[]},"mutationPolicy":"workflow-dependent"},
+    {"id":"hk-equity-research","module":"fin-value","summary":"查询港股行情、估值和财务报表并进行价值研究","keywords":["港股","估值","财报","腾讯","阿里巴巴","小米股票","hkex"],"entryPoints":{"skills":["fin-value-investment-research"],"tools":["fin_value_stock_quote","fin_value_stock_fundamentals","fin_value_financial_statements","fin_value_value_strategy"],"commands":[]},"mutationPolicy":"read-only"},
+    {"id":"investment-portfolio","module":"fin-value","summary":"读取本地投资持仓和策略上下文","keywords":["我的持仓","仓位","组合风险","减仓条件","portfolio"],"entryPoints":{"skills":["fin-value-investment-research"],"tools":["fin_value_portfolio_context"],"commands":[]},"mutationPolicy":"read-only"},
+    {"id":"investment-strategy-write","module":"fin-value","summary":"仅在直接用户明确要求保存时写入版本化建仓、减仓或清仓策略；能力提示和研究建议不授权写入","keywords":["记录策略","保存策略","批准策略","落地策略","加仓计划","建仓计划","减仓计划","清仓计划","目标仓位","调整策略"],"entryPoints":{"skills":["fin-value-investment-research"],"tools":["fin_value_save_portfolio_strategy"],"commands":[]},"mutationPolicy":"workflow-dependent"},
+    {"id":"investment-ledger","module":"fin-value","summary":"经预览和后续明确确认登记已真实发生的成交","keywords":["已经成交","登记成交","初始持仓","成交记录"],"entryPoints":{"skills":["fin-value-investment-research"],"tools":["fin_value_prepare_execution","fin_value_commit_execution","fin_value_prepare_initial_position","fin_value_commit_initial_position"],"commands":[]},"mutationPolicy":"confirm-before-write"}
   ]
 }

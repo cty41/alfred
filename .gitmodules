@@ -4,6 +4,6 @@
 [submodule "repos/skills"]
 	path = repos/skills
 	url = https://github.com/cty41/skills.git
-[submodule "repos/fin-alfred"]
-	path = repos/fin-alfred
+[submodule "repos/fin-value"]
+	path = repos/fin-value
 	url = https://github.com/cty41/fin-alfred.git

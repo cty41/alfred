@@ -1,32 +1,28 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AlfredToolCollection",
-  "type": "object",
-  "required": ["schemaVersion", "tools"],
-  "properties": {
-    "$schema": {"type": "string"},
-    "schemaVersion": {"const": "1.0"},
-    "tools": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": ["id", "path", "repository", "role", "verify", "installCapabilities"],
-        "properties": {
-          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-          "path": {"type": "string", "pattern": "^repos/[a-z0-9][a-z0-9-]*$"},
-          "repository": {"type": "string", "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git$"},
-          "role": {"enum": ["control-kit", "skill-pack", "dsh-domain-tool"]},
-          "verify": {"enum": ["kit-tests", "skills-validate", "fin-tests"]},
-          "installCapabilities": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {"enum": ["vault-control", "user-skills", "dsh-bundle-web", "dsh-bundle-headless"]}
-          }
-        },
-        "additionalProperties": false
-      }
-    }
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://github.com/cty41/alfred/schemas/alfred-tools.schema.json",
+  "title":"Alfred managed capability manifest v2",
+  "type":"object",
+  "required":["schemaVersion","tools","capabilities"],
+  "properties":{
+    "$schema":{"type":"string"},
+    "schemaVersion":{"const":"2.0"},
+    "tools":{"type":"array","minItems":1,"items":{"type":"object","required":["id","path","repository","role","operations","provides"],"properties":{
+      "id":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]*$"},
+      "path":{"type":"string","pattern":"^repos/[a-z0-9][a-z0-9-]*$"},
+      "repository":{"type":"string","pattern":"^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git$"},
+      "role":{"enum":["control-kit","skill-pack","dsh-domain-tool"]},
+      "operations":{"type":"object","minProperties":1,"propertyNames":{"enum":["bootstrap","verify","install","probe"]},"additionalProperties":{"type":"string","pattern":"^[a-z0-9-]+\\.(bootstrap|verify|install|probe)$"}},
+      "provides":{"type":"array","minItems":1,"uniqueItems":true,"items":{"enum":["vault-control","user-skills","dsh-bundle-web","dsh-bundle-headless"]}}
+    },"additionalProperties":false}},
+    "capabilities":{"type":"array","minItems":1,"items":{"type":"object","required":["id","module","summary","keywords","entryPoints","mutationPolicy"],"properties":{
+      "id":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]*$"},
+      "module":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]*$"},
+      "summary":{"type":"string","minLength":1,"maxLength":160},
+      "keywords":{"type":"array","maxItems":16,"uniqueItems":true,"items":{"type":"string","minLength":1,"maxLength":40,"pattern":"^[^\\r\\n\\0]+$"}},
+      "entryPoints":{"type":"object","required":["skills","tools","commands"],"properties":{"skills":{"type":"array","uniqueItems":true,"items":{"type":"string"}},"tools":{"type":"array","uniqueItems":true,"items":{"type":"string"}},"commands":{"type":"array","uniqueItems":true,"items":{"type":"string"}}},"additionalProperties":false},
+      "mutationPolicy":{"enum":["read-only","confirm-before-write","workflow-dependent"]}
+    },"additionalProperties":false}}
   },
-  "additionalProperties": false
+  "additionalProperties":false
 }
