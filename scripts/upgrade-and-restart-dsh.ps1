@@ -47,7 +47,6 @@ try {
     $alfredScript = Join-Path $alfred 'alfred.ps1'
     $startScript = Join-Path $alfred 'scripts/start-dsh-web.ps1'
     if (-not (Test-Path -LiteralPath $alfredScript -PathType Leaf)) { throw 'alfred-checkout-invalid' }
-    if (-not (Test-Path -LiteralPath (Join-Path $dsh 'package.json') -PathType Leaf)) { throw 'dsh-checkout-invalid' }
     if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) { throw 'start-script-missing' }
     $quotedStartScript = $startScript.Replace("'", "''")
     $quotedDsh = $dsh.Replace("'", "''")
@@ -65,6 +64,7 @@ try {
         Emit ([ordered]@{command='upgrade-and-restart-dsh';status='planned';changes=$changes;issues=@();data=@{confirmationRequired=$true;restartRequired=$true;installPreviewStatus=$preview.status}})
         exit 0
     }
+    if (-not (Test-Path -LiteralPath (Join-Path $dsh 'package.json') -PathType Leaf)) { throw 'dsh-checkout-invalid' }
 
     if (-not $ConfirmUpgrade) {
         $answer = Read-Host 'Type YES to stop DSH Web, install, and restart'

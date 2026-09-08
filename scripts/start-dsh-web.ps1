@@ -32,7 +32,6 @@ function Write-Result([System.Collections.IDictionary]$Result) {
 try {
     if ([string]::IsNullOrWhiteSpace($DshCheckout)) { $DshCheckout = Join-Path (Split-Path -Parent $PSScriptRoot) '..\deepseek-harness' }
     $checkout = [IO.Path]::GetFullPath($DshCheckout)
-    if (-not (Test-Path -LiteralPath (Join-Path $checkout 'package.json') -PathType Leaf)) { throw 'dsh-checkout-invalid' }
     $url = "http://127.0.0.1:$Port"
     $running = @(Get-DshWebProcess)
     if ($running.Count -gt 0) {
@@ -44,6 +43,7 @@ try {
         Write-Result ([ordered]@{ command='start-dsh-web';status='planned';changes=$changes;issues=@();data=@{url=$url;trustedHostConfigured=[bool]$TrustedHost;writes=$false} })
         exit 0
     }
+    if (-not (Test-Path -LiteralPath (Join-Path $checkout 'package.json') -PathType Leaf)) { throw 'dsh-checkout-invalid' }
     Push-Location $checkout
     try {
         $arguments = @('run','dsh','--','web','--port',[string]$Port)

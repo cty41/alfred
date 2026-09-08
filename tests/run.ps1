@@ -34,9 +34,10 @@ foreach($command in @('bootstrap','sync','install','update-locks')){
 }
 $dryRunStatusAfter=& git -C $root status --porcelain
 if(($dryRunStatusBefore -join "`n") -ne ($dryRunStatusAfter -join "`n")){throw 'a command dry-run changed repository state'}
-$launcher=& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/start-dsh-web.ps1') -DryRun -Json|ConvertFrom-Json
+$missingDsh=Join-Path ([IO.Path]::GetTempPath()) "alfred-missing-dsh-$([guid]::NewGuid())"
+$launcher=& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/start-dsh-web.ps1') -DshCheckout $missingDsh -DryRun -Json|ConvertFrom-Json
 if($launcher.status -notin @('planned','already-running')){throw 'start launcher dry-run failed'}
-$upgrade=& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/upgrade-and-restart-dsh.ps1') -DryRun -Json|ConvertFrom-Json
+$upgrade=& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/upgrade-and-restart-dsh.ps1') -DshCheckout $missingDsh -DryRun -Json|ConvertFrom-Json
 if($upgrade.status -ne 'planned' -or $upgrade.data.installPreviewStatus -ne 'planned'){throw 'upgrade launcher dry-run failed'}
 $installModule=Import-Module (Join-Path $root 'src/Install.psm1') -Force -PassThru
 $tempInstaller=Join-Path ([IO.Path]::GetTempPath()) "alfred-installer-$([guid]::NewGuid()).ps1"
