@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'Config.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Receipt.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'AlfredScope.psm1') -Force
 
 function Test-AlfredDshProfileRunning {
     try {
@@ -33,13 +34,14 @@ function Invoke-AlfredInstall {
     try{$manifest=Read-AlfredManifest -Root $root}catch{return New-AlfredResult -Command 'install' -Status 'failed' -Issues @('manifest-invalid')}
     $skills=Resolve-AlfredToolPath -Tool ($manifest.tools|Where-Object id -eq 'skills') -Root $root
     $fin=Resolve-AlfredToolPath -Tool ($manifest.tools|Where-Object id -eq 'fin-value') -Root $root
+    $legacy=Test-AlfredLegacyGlobalInstall
     $scripts=@(
-      @{id='skills';checkout=$skills;path=(Join-Path $skills 'scripts/install-user.ps1');args=@()},
-      @{id='fin-value';checkout=$fin;path=(Join-Path $fin 'packages/dsh-fin-value/scripts/install-dsh.ps1');args=@('-Profile',$Profile)},
+      @{id='fin-value';checkout=$fin;path=(Join-Path $fin 'packages/dsh-fin-value/scripts/install-dsh.ps1');args=@('-Profile',$Profile,'-Inactive')},
       @{id='alfred-control';checkout=$root;path=(Join-Path $root 'packages/dsh-alfred/scripts/install-dsh.ps1');args=@('-Profile',$Profile)}
     )
-    $changes=@('install shared user skills',"install dsh-alfred control bundle for profile:$Profile", "install dsh-fin-value bundle for profile:$Profile",'write non-secret minimal receipts; restart DSH manually')
-    if($DryRun){return New-AlfredResult -Command 'install' -Status 'planned' -Changes $changes -Data @{profile=$Profile;localDshCheckout=[bool]$DshCheckout;privatePersistenceConfigured='not-managed-by-alfred-install';writes=$true;restartRequired=$true}}
+    $changes=@('leave Skills dormant until explicit configure',"install dsh-alfred per-Agent dispatch bootstrap for profile:$Profile","install dsh-fin-value inactive for profile:$Profile",'install only a hidden historical-session compatibility preset','write non-secret minimal receipts; restart DSH manually')
+    if($DryRun){return New-AlfredResult -Command 'install' -Status 'planned' -Changes $changes -Data @{profile=$Profile;activationModel='dispatch-v1';migrationRequired=$legacy;localDshCheckout=[bool]$DshCheckout;privatePersistenceConfigured='not-managed-by-alfred-install';writes=$true;restartRequired=$true}}
+    if($legacy){return New-AlfredResult -Command 'install' -Status 'failed' -Issues @('legacy-migration-confirmation-required') -Data @{requiredCommand='configure -MigrateLegacy'}}
     if(-not $DshCheckout){return New-AlfredResult -Command 'install' -Status 'failed' -Issues @('dsh-checkout-required')}
     foreach($tool in @($manifest.tools|Where-Object id -in @('skills','fin-value'))){
       $checkout=Resolve-AlfredToolPath -Tool $tool -Root $root
@@ -74,13 +76,13 @@ function Invoke-AlfredInstall {
           if($exitCode -ne 0){throw 'installer failed'}
         }
         $sourceCommit=(@(& git -C $component.checkout rev-parse HEAD 2>$null)|Select-Object -First 1)
-        Write-AlfredInstallReceipt -ToolId $component.id -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=$sourceCommit;profile=$Profile;restartRequired=($component.id -ne 'skills')}|Out-Null
+        Write-AlfredInstallReceipt -ToolId $component.id -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=$sourceCommit;profile=$Profile;profiles=@($(if($Profile -eq 'all'){@('web','headless')}else{@($Profile)}));activationModel='dispatch-v1';restartRequired=($component.id -ne 'skills')}|Out-Null
         $results.Add(@{id=$component.id;status='ok'})
       }
       catch{$issues.Add("install-failed:$($component.id)");$results.Add(@{id=$component.id;status='failed'})}
     }
     $failedComponent=@($results.ToArray()|Where-Object status -eq 'failed'|Select-Object -First 1)
     $failure=if($failedComponent.Count -and $failedComponent[0].failure){$failedComponent[0].failure}else{$null}
-    New-AlfredResult -Command 'install' -Status $(if($issues.Count){'issues'}else{'ok'}) -Changes $changes -Issues $issues.ToArray() -Data @{profile=$Profile;components=$results.ToArray();privatePersistenceConfigured='not-managed-by-alfred-install';restartRequired=$true;failure=$failure}
+    New-AlfredResult -Command 'install' -Status $(if($issues.Count){'issues'}else{'ok'}) -Changes $changes -Issues $issues.ToArray() -Data @{profile=$Profile;activationModel='dispatch-v1';components=$results.ToArray();privatePersistenceConfigured='not-managed-by-alfred-install';restartRequired=$true;failure=$failure}
 }
-Export-ModuleMember -Function Invoke-AlfredInstall
+Export-ModuleMember -Function Invoke-AlfredInstall,Test-AlfredDshProfileRunning

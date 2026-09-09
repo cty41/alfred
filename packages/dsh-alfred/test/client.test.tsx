@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { apply, isAlfAvailablePreset, presetFromSummary } from '../src/client.js'
+import { apply, isAlfAvailable, presetFromSummary } from '../src/client.js'
 
 describe('ALF Web capability entry', () => {
   it('registers only official composer slots', () => {
@@ -16,10 +16,11 @@ describe('ALF Web capability entry', () => {
     expect(presetFromSummary({ projectionValues: { agentPreset: 'minimal' }, agentPreset: 'alfred' })).toBe('minimal')
   })
 
-  it('keeps minimal excluded and full presets available', () => {
-    expect(isAlfAvailablePreset('standard')).toBe(true)
-    expect(isAlfAvailablePreset('ptc')).toBe(true)
-    expect(isAlfAvailablePreset('alfred')).toBe(true)
-    expect(isAlfAvailablePreset('minimal')).toBe(false)
+  it('shows ALF from actual session availability instead of an Alfred mode', () => {
+    expect(isAlfAvailable('standard')).toBe(false)
+    expect(isAlfAvailable('standard', true)).toBe(true)
+    expect(isAlfAvailable('ptc', true)).toBe(true)
+    expect(isAlfAvailable('alfred', true)).toBe(true)
+    expect(isAlfAvailable('minimal', true)).toBe(false)
   })
 })

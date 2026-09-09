@@ -9,7 +9,7 @@ Alfred（简称 **ALF**）是个人 Agent 能力栈的总控制面。它固定�
 - `fin-value`：港股价值研究与确认式本地成交登记领域 bundle
 - `packages/dsh-alfred`：ALF persona、`alfred_capabilities`、称呼偏好、意图路由与 Web 能力入口
 
-这些组件默认全部安装，不提供模块选择或排除逻辑。`minimal` preset 仍由 DSH 保持精简；完整 preset 会得到 ALF 控制能力。
+安装只准备组件，不再等同于对所有会话启用。项目或用户配置会在基础 Standard/PTC preset 挂载后，为该 Agent 的隔离 scope 附加 ALF 与 Fin Value；Minimal 排除，`alfred` preset 只作为 hidden 历史兼容项。项目可用 `<项目>/.agents/alfred.json` 启用，用户可用 `~/.agents/alfred.json` 全局启用。`/alf`、`/alfred`、`alf`、`alfred` 都会先核对当前能力再加载相关领域 Skill。
 
 ## 快速开始
 
@@ -19,6 +19,10 @@ cd alfred
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 doctor -Quick
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 bootstrap
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all -DshCheckout 'D:\path\to\deepseek-harness'
+# 为当前项目启用（新会话生效）
+powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope Project -ProjectRoot . -Enable
+# 或为当前用户全局启用
+powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope User -Enable
 ```
 
 macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/python` 已做模拟测试，但尚未在真实 macOS 设备验收。
@@ -31,10 +35,12 @@ macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/p
 ./alfred.ps1 bootstrap -DryRun -Json   # 初始化 pinned 子模块并构建
 ./alfred.ps1 sync -DryRun -Json        # 对齐当前根仓 gitlinks，不追踪 remote HEAD
 ./alfred.ps1 install -Profile all -DryRun -Json
+./alfred.ps1 configure -Scope Project -ProjectRoot . -Enable -DryRun -Json
+./alfred.ps1 configure -Scope User -Disable -DryRun -Json
 ./alfred.ps1 update-locks -DryRun -Json # 维护者显式更新 gitlinks
 ```
 
-`bootstrap`、`sync`、`install`、`update-locks` 都支持 `-DryRun`；dry-run 不进行网络或文件写入。`update-locks` 在任何子模块 dirty 时拒绝执行。旧的含糊 `update` 命令已移除。
+`bootstrap`、`sync`、`install`、`configure`、`update-locks` 都支持 `-DryRun`；dry-run 不进行网络或文件写入。`update-locks` 在任何子模块 dirty 时拒绝执行。旧安装会报告 `legacy-global` 并保持原行为，只有停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all -DshCheckout <checkout>` 才迁移到 `dispatch-v1` per-Agent 模型。配置和能力提示本身都不授权这次迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖仍为 `true` 的用户全局配置，要全局关闭请使用 `-Scope User -Disable`。
 
 ## Windows一键启动与升级
 
@@ -44,7 +50,7 @@ macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/p
 
 ## 能力发现
 
-`alfred_capabilities` 合并根清单、只读Git/文件事实以及DSH实际注册的tools/Skills，分别报告声明、源码、构建、安装、运行时可见性、配置、健康和新鲜度。umbrella探针不执行子模块代码；输出会隐藏本机路径、凭据和receipt内容。
+`alfred_capabilities` 只在启用了 ALF 的 Standard/PTC Agent（或 hidden 历史 `alfred` 会话）中注册，并合并根清单、只读Git/文件事实以及DSH实际注册的tools/Skills，分别报告声明、源码、构建、安装、运行时可见性、配置、健康和新鲜度。umbrella探针不执行子模块代码；输出会隐藏本机路径、凭据和receipt内容。
 
 ALF 只针对顶层直接用户消息做 token-aware 意图匹配，每轮最多提示两个能力，同一会话每项只提示一次。工具消息、插件注入、子 Agent 和自动 continuation 不会触发；提示不构成安装、迁移或写入授权。
 
@@ -59,7 +65,7 @@ npm --prefix ./repos/fin-value run migrate:local-state -- --dry-run --json
 npm --prefix ./repos/fin-value run migrate:local-state -- --profiles-stopped --json
 ```
 
-迁移通过 SQLite checkpoint + `VACUUM INTO` 生成并校验新账本，不覆盖已有目标；市场缓存重建、报告留在原位、待确认 token 不迁移。安装器会在不打印 secrets 的前提下转换旧 finance profile 配置。
+迁移通过 SQLite checkpoint + `VACUUM INTO` 生成并校验新账本，不覆盖已有目标；市场缓存重建、报告留在原位、待确认 token 不迁移。安装器会在不打印 secrets 的前提下把旧 finance profile/preset 配置按 profile 移入 bootstrap 的 opaque `finValue` 配置；Fin Value bundle 继续保持 profile-inactive，只在启用 Agent scope 内挂载。
 
 GitHub 远端仍是 `cty41/fin-alfred`，改名为 `fin-value` 是独立外部操作，必须另行明确确认。
 

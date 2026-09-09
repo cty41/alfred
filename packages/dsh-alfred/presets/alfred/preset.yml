@@ -1,0 +1,3 @@
+name: Alfred
+description: Compatibility composition for historical Alfred sessions; new sessions use Standard plus ALF dispatch.
+hidden: true

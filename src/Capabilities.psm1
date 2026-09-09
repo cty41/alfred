@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'Config.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Receipt.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'AlfredScope.psm1') -Force
 
 function Invoke-AlfredFixedProbe {
     param([Parameter(Mandatory)][string]$ProbeId,[Parameter(Mandatory)][string]$Checkout)
@@ -38,7 +39,7 @@ function Get-AlfredModuleFacts {
         id=[string]$Tool.id
         source=[ordered]@{state=$(if(-not $present){'not-present'}elseif($expected -and $actual -eq $expected){'pinned'}else{'version-drift'});dirty=[bool]$dirty;managed=$true}
         build=$build
-        installation=$(if($receiptCurrent){'receipt-current'}elseif($null -ne $receipt){'receipt-stale'}elseif($installable){'not-recorded'}else{'not-required'})
+        installation=$(if($receiptCurrent -and [string]$Tool.id -eq 'skills' -and $receipt.data.psobject.Properties.Name -contains 'enabled' -and -not [bool]$receipt.data.enabled){'disabled'}elseif($receiptCurrent){'receipt-current'}elseif($null -ne $receipt){'receipt-stale'}elseif($installable){'not-recorded'}else{'not-required'})
         configuration=[string]$probe.configuration
         health=[string]$probe.health
         freshness=$(if($receiptCurrent){'current'}elseif($null -ne $receipt){'stale'}else{'not-recorded'})
@@ -62,6 +63,7 @@ function Invoke-AlfredCapabilities {
             actionability=$action;reasonCodes=@($module.reasonCodes)
         })
     }
-    New-AlfredResult -Command 'capabilities' -Status 'ok' -Data @{schemaVersion='1.0';scope='local-installation';capabilities=$facts.ToArray();privacy='local paths, receipt contents, environment values, and credentials are redacted'}
+    $activation=Get-AlfredActivationStatus -Cwd ([string](Get-Location))
+    New-AlfredResult -Command 'capabilities' -Status 'ok' -Data @{schemaVersion='1.0';scope='local-installation';activation=[ordered]@{state=$activation.state;enabled=$activation.enabled;source=$activation.source;reasonCode=$activation.reasonCode;activationModel=$activation.activationModel};capabilities=$facts.ToArray();privacy='local paths, receipt contents, environment values, and credentials are redacted'}
 }
 Export-ModuleMember -Function Invoke-AlfredCapabilities

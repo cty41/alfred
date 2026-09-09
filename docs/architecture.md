@@ -20,8 +20,9 @@ packages/dsh-alfred
 
 - `bootstrap`: 初始化当前 gitlinks 指向的全部子模块，并构建 ALF 与 Fin Value。
 - `sync`: 只对齐当前根仓 gitlinks；不访问 remote HEAD。
-- `install`: 默认安装 Skills、`dsh-fin-value` 和 `dsh-alfred` 到所选完整 profiles；组件失败独立报告，可幂等重跑。
-- `doctor`: 只读环境和 checkout 健康。
+- `install`: 安装 ALF per-Agent setup bootstrap、inactive dependency `dsh-fin-value`，以及仅供历史会话恢复的 hidden `alfred` compatibility preset；不新增可选 session mode。
+- `configure`: 在项目 `.agents/alfred.json` 或用户 `~/.agents/alfred.json` 显式启停，在同一 scope 管理 Skills，并迁移到 `dispatch-v1`；旧 global/scoped 激活迁移需独立显式参数。
+- `doctor`: 只读环境、checkout 和 scoped activation 健康。
 - `capabilities`: 只读能力事实。
 - `update-locks`: 维护者显式逐个更新三个受管顶层gitlink；不递归推进子仓自行拥有的nested gitlinks，任何失败都回退本轮已更新checkout，dirty子模块直接拒绝。
 
@@ -44,15 +45,19 @@ packages/dsh-alfred
 
 CLI probe 不伪装成 runtime verification，也不执行子模块代码；DSH bundle 会额外通过 `ctx.tools.schemas(agent)` 和 `ctx.skills.list({ cwd, scope })` 合并实际可见性。根 manifest 只包含短摘要、关键词和固定allowlist entry points；它不包含任意命令文本，也不接受子模块返回的自由文本作为提示词。
 
-## Proactive routing
+## Standard dispatch and proactive routing
 
-`dsh-alfred` 仅处理顶层 `source.kind === 'user'` 的直接用户输入，并排除 subagent、tool/plugin 注入及自动 continuation。匹配对 `ALF` 使用 token boundary，不做裸 substring；每轮最多两项，同一 capability 在一个 session 中只提示一次。会话 resume/compact 保留去重状态，新 session 清空。用户可在当前 session 禁用提示。
+ALF 是 Standard/PTC 内的最高优先级能力调度入口，不是与 Standard 并列的 mode。直接用户可用 `/alf`、`/alfred`、`alf` 或 `alfred` 在消息开头显式调用；slash 形式复用 DSH Skill 注入，非 slash 形式注入 canonical `alfred` Skill 调度指令。两者都先调用 `alfred_capabilities` 核对当前 Agent 的真实能力，再只加载与任务相关的领域 Skill。`half`、路径、引用、代码、tool/plugin 输出、subagent 和自动 continuation 均不触发。显式调用即使关闭自动提示也始终有效。
 
-路由仅建议相关 Skill/tool 或调用 `alfred_capabilities`；建议本身不授权安装、迁移、账本写入或其他 mutation。港股研究首次路由会要求Fin Value先只读检查研究资料库状态；未配置时只能prepare预览，下一轮直接用户确认后才能commit。`minimal` 不安装 ALF 控制层，完整 presets 全局可用，不依赖工作区路径。
+普通主动路由仍只处理顶层 `source.kind === 'user'` 的直接用户输入；每轮最多两项，同一 capability 在一个 session 中只提示一次。会话 resume/compact 保留去重状态，新 session 清空，用户可在当前 session 禁用提示。路由只建议当前 Agent scope 已注册的相关 Skill/tool；显式调用或建议都不授权安装、迁移、资料库配置、策略保存、账本写入或其他 mutation。
+
+Profile 根层只运行不向模型注册能力的 `dsh-alfred/bootstrap`。DSH 在基础 preset 挂载后、Agent 发布前调用具名 setup extension：新建/恢复的 Standard 或 PTC Agent 按 cwd 检查最近项目的 `.agents/alfred.json`，再检查用户 `~/.agents/alfred.json`；任一 `enabled:true` 才在该 Agent 的隔离 scope 中挂载 `dsh-alfred` 与 `dsh-fin-value`。Minimal 永远排除。fork/spawn 仅继承其确切存活父 Agent 已激活的扩展，不按子 cwd 越权获得能力；同一进程内不同项目不会修改或污染共享 Standard standing composition。
+
+历史 `agentPreset: alfred` 会话继续通过 hidden compatibility preset 恢复，日志和 tool name 不重写；该 preset 不出现在普通 roster 或新会话选择器中。
 
 ## Ownership boundaries
 
-- **Alfred/ALF**：persona、能力目录、主动路由、Web 入口、称呼偏好。
+- **Alfred/ALF**：persona、当前 scope 能力目录、显式 dispatcher、主动路由、Web 入口、称呼偏好和 per-Agent setup 激活；不选择或替换基础 preset，也不实现或越权过滤领域能力。
 - **knowledge-base-kit**：通用 vault 控制和非递归 capability status；不依赖 Alfred。
 - **skills**：通用用户 Skills；不放 Alfred 项目内容。
 - **Fin Value**：港股数据、估值、持仓、版本化建仓/减仓/清仓策略、确认式ledger write及小米云研究资料库；它拥有资料库检测、确认配置、只读查询和受限官方PDF新增，不拥有Alfred persona/help/routing。策略仅在直接用户明确要求保存完整方案时一次性原子写入，具体股票的实时策略只能以Fin Value私有数据库为权威来源。
@@ -62,13 +67,18 @@ Fin Value 运行时是 breaking rename：bundle `dsh-fin-value`、Skill `fin-val
 
 ## Persistence and migration
 
+- ALF 激活配置：项目 `<project>/.agents/alfred.json` 或用户 `~/.agents/alfred.json`；只决定受支持基础 preset 的 Agent 是否附加 ALF 能力，不选择 preset。项目 `false` 不覆盖用户 `true`。
 - ALF 称呼偏好：Windows application data、macOS `~/Library/Application Support/alfred`、Linux XDG 路径；不触碰投资账本。
 - Fin Value ledger：对应平台的 `fin-value/fin-value.db`；市场 cache 与 ledger 分离。
 - Fin Value私有快照：snapshot/report路径由Fin Value安装器的显式本机参数配置；Alfred umbrella不读取vault配置或自动推导私人路径。活跃SQLite仍留在本地，云端只接收校验完成的封闭副本和非权威HTML阅读报告。
 - Fin Value研究资料库：首次港股研究由ALF提示，Fin Value自动检测固定小米云候选；配置只在预览后的下一轮确认写入平台本机数据目录，立即生效。长期授权仅允许向确认根目录新增受信官方HTTPS PDF，不代表小米云同步成功，也不授权覆盖、删除或任意下载。
 - receipts：仅记录 checkout commit、gitlinks、profiles 和安装时间，不保存 path/token/profile 内容。
 
-旧本地状态迁移要求停止相关 profiles，拒绝覆盖目标；Fin Value只迁移投资账本，先checkpoint，再用SQLite `VACUUM INTO`复制并执行integrity check。市场缓存重建，报告原地保留；称呼偏好由Alfred/ALF独立拥有，不由Fin Value迁移。secrets只在本机profile patch内保留且不输出，pending confirmation tokens失效。历史DSH sessions不重写，仍按历史tool name只读查看。
+旧的 profile-global 与 `scoped-v1` 安装通过 receipt、bundle lifecycle 和 compatibility preset metadata 识别。只有直接用户显式运行带 `-MigrateLegacy` 的 `configure` 且相关 profiles 已停止，才迁移为 `dispatch-v1`：Fin Value 保持 profile-inactive dependency，受管 legacy override 被移除，原 profile/preset 中的 Fin Value 配置按 profile 原样嵌入 bootstrap 的 opaque `finValue` config，并写入项目或用户激活配置。配置发现和能力建议都不构成迁移授权。
+
+迁移对 profile 控制文件、activation config、receipt 和 compatibility preset 做精确备份与失败回滚；不同 profile 的私有配置不互相折叠。secrets 只在本机配置中转移且不进入 receipt 或输出。Fin Value 的投资账本、研究资料库与 pending confirmation 授权语义保持独立；历史 DSH sessions 不重写，仍按历史 composition/tool name 查看或恢复。
+
+迁移配置来源按 profile 独立选择：已有合法受管 dispatch 块原样保留（包括空 `finValue: {}`），不从旧配置补字段；没有该块时才使用受管旧 profile 配置，最后回退到历史 preset。重复调用保持已有块逐字节不变。所有选中 profile 先完成预检，再原子写入候选；重复/损坏标记、来源冲突或非受管 bootstrap 覆盖会拒绝，避免对其他 profile 产生部分写入。自动预检仅接受可明确识别的单行标量映射和空映射，复杂 YAML 结构拒绝自动迁移；不加载新解析器依赖，不打印配置值。最终仍需通过 `--dump-config` 验证后才能提交 receipt。
 
 ## Platform support
 

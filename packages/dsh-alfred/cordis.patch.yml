@@ -1,4 +1,5 @@
-# Adds the ALF capability discovery and routing control plane.
+# Adds only ALF's model-invisible workspace activation bootstrap.
+# It mounts the control plane and domain bundle inside enabled Agent scopes.
 - insert:
-    - id: dsh-alfred
-      name: dsh-alfred
+    - id: dsh-alfred-bootstrap
+      name: dsh-alfred/bootstrap

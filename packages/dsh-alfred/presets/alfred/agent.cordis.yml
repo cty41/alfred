@@ -40,6 +40,18 @@
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
 
+# BEGIN dsh-alfred scoped capabilities
+# ALF is scoped to this preset; the profile-level bundle loads only its
+# model-invisible workspace activation bootstrap.
+- id: alf-control
+  name: dsh-alfred
+
+# Fin Value remains an independently owned domain plugin. Alfred composes it
+# here but does not implement or bypass any of its confirmation boundaries.
+- id: fin-value
+  name: dsh-fin-value
+# END dsh-alfred scoped capabilities
+
 - id: command-goal
   name: '@deepseek-ai/dsh-command-goal'
 

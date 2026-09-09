@@ -9,10 +9,11 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./bootstrap": { "types": "./dist/bootstrap.d.ts", "default": "./dist/bootstrap.js" },
     "./client": { "default": "./dist/client.js" },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "presets", "scripts", "cordis.patch.yml", "README.md"],
+  "files": ["dist", "skills", "presets", "scripts", "cordis.patch.yml", "README.md"],
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
@@ -6,15 +7,17 @@ import { loadRoutes } from './catalog.js'
 import { CapabilityProbe, defaultAlfredRoot } from './probe.js'
 import { readPreferences, writePreferredAddress } from './preferences.js'
 import { directUserText, isTopLevelHumanAgent, preferredAddressFromText, routeForTurn, routingInstruction, type SessionRoutingState } from './routing.js'
+import { parseAlfredInvocation } from './trigger.js'
 
 export const name = 'dsh-alfred'
-export const inject = ['tools', 'skills']
+export const inject = ['tools', 'skills', 'sessionProjections']
 
 interface ControlConfig {
   alfredRoot?: string
   probeTtlMs?: number
   probeTimeoutMs?: number
   excludedPresets?: string[]
+  legacyGlobal?: boolean
 }
 
 export const Config: z<ControlConfig> = z.object({
@@ -22,6 +25,7 @@ export const Config: z<ControlConfig> = z.object({
   probeTtlMs: z.number().default(300_000),
   probeTimeoutMs: z.number().default(5_000),
   excludedPresets: z.array(z.string()).default(['minimal']),
+  legacyGlobal: z.boolean().default(false),
 })
 
 function textOutput() {
@@ -37,10 +41,29 @@ export function capabilityActionability(localActionability: unknown, excluded: b
   return runtimeVisible ? 'ready' : 'setup-required'
 }
 
+const booleanSchema = { parse(value: unknown): boolean { if (typeof value !== 'boolean') throw new TypeError('expected boolean'); return value } }
+function packagedSkill(name: 'alf' | 'alfred'): string {
+  const markdown = readFileSync(new URL(`../skills/${name}/SKILL.md`, import.meta.url), 'utf8')
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, '')
+}
+
+const alfredAvailableProjection = {
+  key: 'alfredAvailable',
+  stateSchema: booleanSchema,
+  init: () => false,
+  apply: (state: boolean, event: any) => event?.type === 'alfred/available' || event?.type === 'alfred/legacy-global' ? true : state,
+  wire: { viewSchema: booleanSchema, view: (state: boolean) => state },
+  stateVersion: 1,
+}
+
 export function apply(ctx: Context, config: ControlConfig = {}): void {
   const runtime = ctx as Context & {
     tools: { register(value: unknown): unknown; schemas(agent?: unknown): Array<{ name: string }> }
-    skills: { list(options?: unknown): Promise<Array<{ name: string; description: string; source: string }>> }
+    skills: {
+      register(skill: { name: string; description: string; content: string; source: 'runtime'; provider?: string }): unknown
+      list(options?: unknown): Promise<Array<{ name: string; description: string; source: string }>>
+    }
+    sessionProjections: { register(definition: unknown): unknown; stateOf(session: unknown, key: string): unknown }
     on(event: string, listener: (...args: any[]) => unknown): unknown
   }
   const root = config.alfredRoot || defaultAlfredRoot(import.meta.url)
@@ -49,6 +72,21 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
   const excluded = new Set(config.excludedPresets ?? ['minimal'])
   const sessions = new Map<string, SessionRoutingState>()
   const addressAuthorizations = new Map<string, { turnId: string; address: string; consumed: boolean }>()
+  runtime.skills.register({
+    name: 'alfred',
+    description: 'Use when the user explicitly addresses alf or alfred, or asks Alfred to coordinate available capabilities — inspect current capability facts first, then load the most relevant domain Skill before acting.',
+    content: packagedSkill('alfred'),
+    source: 'runtime',
+    provider: 'dsh-alfred',
+  })
+  runtime.skills.register({
+    name: 'alf',
+    description: 'Use when the direct user invokes /alf or starts a request with alf — route the request through the canonical alfred capability-dispatch Skill.',
+    content: packagedSkill('alf'),
+    source: 'runtime',
+    provider: 'dsh-alfred',
+  })
+  runtime.sessionProjections.register(alfredAvailableProjection)
 
   async function capabilityView(agent: any, signal?: AbortSignal): Promise<unknown> {
     const [base, skills] = await Promise.all([
@@ -118,17 +156,18 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
   runtime.on('skills/change', () => probe.invalidate())
   runtime.on('agent/session-start', ({ agent, source }: any) => {
     if (excluded.has(presetOf(agent)) || !isTopLevelHumanAgent(agent)) return
+    if (runtime.sessionProjections.stateOf(agent.session, 'alfredAvailable') !== true) {
+      agent.session.append(config.legacyGlobal ? 'alfred/legacy-global' : 'alfred/available', {})
+    }
     const key = sessionKey(agent)
     if (source === 'startup' || source === 'clear' || !sessions.has(key)) {
       sessions.set(key, { prompted: new Set(), suppressed: false })
       addressAuthorizations.delete(key)
     }
-    const preferred = presetOf(agent) === 'alfred' ? readPreferences().preferredAddress : undefined
-    const persona = presetOf(agent) !== 'alfred'
-      ? ''
-      : preferred
-        ? `用户持久化称呼偏好是「${preferred}」。请沿用，除非用户更改。\n`
-        : '尚未保存称呼偏好；请在自然合适时询问一次，不得臆造。\n'
+    const preferred = readPreferences().preferredAddress
+    const persona = preferred
+      ? `用户持久化称呼偏好是「${preferred}」。请沿用，除非用户更改。\n`
+      : '尚未保存称呼偏好；请在自然合适时询问一次，不得臆造。\n'
     agent.inject({
       id: `alf-control-${String(agent.id)}-${String(source)}`,
       role: 'user',
@@ -152,7 +191,16 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
     }
     const state = sessions.get(key) ?? { prompted: new Set<string>(), suppressed: false }
     sessions.set(key, state)
-    const instruction = routingInstruction(routeForTurn(text, state, routes))
+    const invocation = parseAlfredInvocation(text)
+    const slashSkillInjected = invocation.slash && messages.some((message: any) =>
+      message?.source?.kind === 'skill-invocation' && (message.source.name === 'alf' || message.source.name === 'alfred'))
+    const instruction = invocation.explicit
+      ? slashSkillInjected
+        ? undefined
+        : invocation.task
+          ? 'The direct user explicitly invoked Alfred. Before acting, call the skill tool with name "alfred"; then inspect current capability facts and load only the relevant domain Skill. The invocation does not authorize installation, migration, configuration, or writes.'
+          : 'The direct user invoked Alfred without a task. Ask what they want help with; do not advertise the whole capability catalog and do not install or change anything.'
+      : routingInstruction(routeForTurn(text, state, routes))
     if (!instruction) return downstream
     return {
       ...downstream,
@@ -169,3 +217,4 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
 export { ROUTES, loadRoutes, isCapabilityQuestion, matchRoutes } from './catalog.js'
 export { preferencesPath, readPreferences, writePreferredAddress } from './preferences.js'
 export { directUserText, isTopLevelHumanAgent, preferredAddressFromText, routeForTurn, routingInstruction } from './routing.js'
+export { parseAlfredInvocation } from './trigger.js'

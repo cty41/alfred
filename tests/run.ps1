@@ -2,6 +2,7 @@ $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Import-Module (Join-Path $root 'src/Config.psm1') -Force
 Import-Module (Join-Path $root 'src/Receipt.psm1') -Force
+Import-Module (Join-Path $root 'src/AlfredScope.psm1') -Force
 $manifest=Read-AlfredManifest -Root $root
 if(@($manifest.tools).Count -ne 3){throw 'expected exactly three pinned modules'}
 if(@($manifest.capabilities).Count -lt 8){throw 'operation-level capability catalog is incomplete'}
@@ -32,6 +33,10 @@ foreach($command in @('bootstrap','sync','install','update-locks')){
  $result=& $powerShell @args|ConvertFrom-Json
  if($result.status -ne 'planned' -and -not ($result.status -eq 'failed' -and (@($result.issues) -join ',') -match 'submodule-(dirty|status-unavailable)')){throw "$command dry-run was not planned or safely blocked"}
 }
+$configureArgs=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $root 'alfred.ps1'),'configure','-Scope','Project','-ProjectRoot',$root,'-Profile','web','-DshCheckout',$root,'-Enable','-DryRun','-Json')
+if(Test-AlfredLegacyGlobalInstall){$configureArgs+='-MigrateLegacy'}
+$configure=& $powerShell @configureArgs|ConvertFrom-Json
+if($configure.status -ne 'planned'){throw 'configure dry-run was not planned'}
 $dryRunStatusAfter=& git -C $root status --porcelain
 if(($dryRunStatusBefore -join "`n") -ne ($dryRunStatusAfter -join "`n")){throw 'a command dry-run changed repository state'}
 $missingDsh=Join-Path ([IO.Path]::GetTempPath()) "alfred-missing-dsh-$([guid]::NewGuid())"
@@ -53,9 +58,72 @@ exit 7
  $logged=& $installModule {param($shell,$script) Invoke-AlfredLoggedInstaller -PowerShell $shell -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',$script)} $powerShell $tempInstaller
  if(@($logged).Count -ne 1 -or $logged -ne 7){throw 'installer logs polluted the result stream'}
 }finally{Remove-Item -LiteralPath $tempInstaller -Force -ErrorAction SilentlyContinue}
+Import-Module (Join-Path $root 'src/AlfredScope.psm1') -Force
 Import-Module (Join-Path $root 'src/Receipt.psm1') -Force
+$scopeTemp=Join-Path ([IO.Path]::GetTempPath()) "alfred-scope-$([guid]::NewGuid())"
+try{
+ New-Item -ItemType Directory -Path (Join-Path $scopeTemp 'project/.git') -Force|Out-Null
+ New-Item -ItemType Directory -Path (Join-Path $scopeTemp 'project/.agents') -Force|Out-Null
+ '{"schemaVersion":"1.0","enabled":true}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'project/.agents/alfred.json') -Encoding UTF8
+ $scopeStatus=Get-AlfredActivationStatus -Cwd (Join-Path $scopeTemp 'project') -HomePath (Join-Path $scopeTemp 'home') -ReceiptRoot (Join-Path $scopeTemp 'receipts')
+ if($scopeStatus.state -ne 'configured-project' -or -not $scopeStatus.enabled){throw 'project activation config was not resolved'}
+ '{"schemaVersion":"1.0","enabled":true,"extra":1}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'project/.agents/alfred.json') -Encoding UTF8
+ if((Read-AlfredActivationConfig -Path (Join-Path $scopeTemp 'project/.agents/alfred.json')).state -ne 'invalid'){throw 'unknown activation config field was accepted'}
+ New-Item -ItemType Directory -Path (Join-Path $scopeTemp 'dsh/profiles/web') -Force|Out-Null
+ '{"dsh":{"profile":{"bundles":["dsh-fin-value"],"inactiveBundles":[]}}}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'dsh/profiles/web/package.json') -Encoding UTF8
+ if(Test-AlfredLegacyGlobalInstall -ReceiptRoot (Join-Path $scopeTemp 'empty-receipts') -DshHome (Join-Path $scopeTemp 'dsh')){throw 'independent Fin Value install was misclassified as Alfred legacy'}
+ '{"dsh":{"profile":{"bundles":["dsh-alfred","dsh-fin-value"],"inactiveBundles":[]}}}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'dsh/profiles/web/package.json') -Encoding UTF8
+ if(-not(Test-AlfredLegacyGlobalInstall -ReceiptRoot (Join-Path $scopeTemp 'empty-receipts') -DshHome (Join-Path $scopeTemp 'dsh'))){throw 'legacy Alfred plus Fin Value bundles were not detected'}
+ $receiptRoot=Join-Path $scopeTemp 'receipts';Write-AlfredInstallReceipt -ToolId 'alfred-control' -ReceiptRoot $receiptRoot -Data @{activationModel='dispatch-v1';profile='web';profiles=@('web')}|Out-Null
+ '{"dsh":{"profile":{"bundles":["dsh-alfred"],"inactiveBundles":["dsh-fin-value"]}}}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'dsh/profiles/web/package.json') -Encoding UTF8
+ New-Item -ItemType Directory -Path (Join-Path $scopeTemp 'dsh/profiles/headless') -Force|Out-Null
+ '{"dsh":{"profile":{"bundles":["dsh-alfred"],"inactiveBundles":["dsh-fin-value"]}}}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'dsh/profiles/headless/package.json') -Encoding UTF8
+ if(-not(Test-AlfredLegacyGlobalInstall -ReceiptRoot $receiptRoot -DshHome (Join-Path $scopeTemp 'dsh'))){throw 'partial dispatch receipt masked an unmigrated profile'}
+ Write-AlfredInstallReceipt -ToolId 'alfred-control' -ReceiptRoot $receiptRoot -Data @{activationModel='dispatch-v1';profile='all';profiles=@('web','headless')}|Out-Null
+ if(Test-AlfredLegacyGlobalInstall -ReceiptRoot $receiptRoot -DshHome (Join-Path $scopeTemp 'dsh')){throw 'complete dispatch receipt was misclassified as legacy'}
+}finally{Remove-Item -LiteralPath $scopeTemp -Recurse -Force -ErrorAction SilentlyContinue}
 $mac=Get-AlfredReceiptRoot -Platform macos
 if($mac -notmatch 'Library[\\/]Application Support[\\/]alfred'){throw 'macOS receipt path mismatch'}
+$configureModule=Import-Module (Join-Path $root 'src/Configure.psm1') -Force -PassThru
+$activationWriteTemp=Join-Path ([IO.Path]::GetTempPath()) "alfred-activation-write-$([guid]::NewGuid())/.agents/alfred.json"
+try{
+ & $configureModule {param($path) Write-AlfredActivationConfigFile -Path $path -Enabled $true} $activationWriteTemp
+ $activationBytes=[IO.File]::ReadAllBytes($activationWriteTemp)
+ if($activationBytes.Length -ge 3 -and $activationBytes[0] -eq 0xEF -and $activationBytes[1] -eq 0xBB -and $activationBytes[2] -eq 0xBF){throw 'activation config writer emitted a UTF-8 BOM'}
+}finally{Remove-Item -LiteralPath (Split-Path -Parent (Split-Path -Parent $activationWriteTemp)) -Recurse -Force -ErrorAction SilentlyContinue}
+$configMigrationTemp=Join-Path ([IO.Path]::GetTempPath()) "alfred-config-migration-$([guid]::NewGuid())"
+try{
+ New-Item -ItemType Directory -Path $configMigrationTemp|Out-Null
+ $webPatch=Join-Path $configMigrationTemp 'web.yml';$headlessPatch=Join-Path $configMigrationTemp 'headless.yml';$presetPath=Join-Path $configMigrationTemp 'agent.cordis.yml'
+ "- id: dsh-fin-value`n  config:`n    timeoutMs: 12345`n    tushareToken: local-secret`n"|Set-Content -LiteralPath $webPatch -Encoding UTF8 -NoNewline
+ "# headless`n"|Set-Content -LiteralPath $headlessPatch -Encoding UTF8 -NoNewline
+ "- id: fin-value`n  name: dsh-fin-value`n  config:`n    timeoutMs: 22222`n"|Set-Content -LiteralPath $presetPath -Encoding UTF8 -NoNewline
+ & $configureModule {param($patches,$preset) Move-AlfredFinValueConfigToDispatch -ProfilePatches $patches -PresetPath $preset -ManagedInstall} @($webPatch,$headlessPatch) $presetPath
+ $webMigrated=Get-Content -LiteralPath $webPatch -Raw;$headlessMigrated=Get-Content -LiteralPath $headlessPatch -Raw
+ if($webMigrated -notmatch 'finValue:' -or $webMigrated -notmatch 'timeoutMs: 12345' -or $webMigrated -notmatch 'tushareToken: local-secret'){throw 'profile Fin Value settings were not moved into dispatch bootstrap config'}
+ if($headlessMigrated -notmatch 'finValue:' -or $headlessMigrated -notmatch 'timeoutMs: 22222'){throw 'preset Fin Value settings were not preserved as dispatch fallback'}
+ if($webMigrated -match '(?m)^- id: dsh-fin-value$' -or $headlessMigrated -match '(?m)^- id: dsh-alfred$'){throw 'legacy profile patch rows survived dispatch migration'}
+}finally{Remove-Item -LiteralPath $configMigrationTemp -Recurse -Force -ErrorAction SilentlyContinue}
+& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'dispatch-migration.ps1')
+if($LASTEXITCODE -ne 0){throw 'dispatch migration regression suite failed'}
+$presetTemp=Join-Path ([IO.Path]::GetTempPath()) "alfred-preset-$([guid]::NewGuid())"
+$alfredInstallerSource=Get-Content -LiteralPath (Join-Path $root 'packages/dsh-alfred/scripts/install-dsh.ps1') -Raw
+if($alfredInstallerSource -notmatch '\[Console\]::Error\.WriteLine' -or $alfredInstallerSource -notmatch 'dump-config.*-Silent' -or $alfredInstallerSource -notmatch '\$null=& \$powerShell @presetArgs'){throw 'Alfred installer does not keep child logs and results out of its JSON stream'}
+try{
+ & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'packages/dsh-alfred/scripts/install-preset.ps1') -DshHome $presetTemp -LegacyGlobal -Json|Out-Null
+ $legacyPreset=Get-Content -LiteralPath (Join-Path $presetTemp '.agent-presets/alfred/agent.cordis.yml') -Raw
+ if($legacyPreset -match '(?m)^- id: (alf-control|fin-value)$'){throw 'legacy preset duplicated scoped plugins'}
+ & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'packages/dsh-alfred/scripts/install-preset.ps1') -DshHome $presetTemp -Json|Out-Null
+ $scopedPresetPath=Join-Path $presetTemp '.agent-presets/alfred/agent.cordis.yml'
+ $scopedPreset=Get-Content -LiteralPath $scopedPresetPath -Raw
+ if((Get-Content -LiteralPath (Join-Path $presetTemp '.agent-presets/alfred/preset.yml') -Raw) -notmatch '(?m)^hidden: true$'){throw 'historical Alfred compatibility preset is visible in new-session roster'}
+ if($scopedPreset -notmatch '(?m)^- id: alf-control$' -or $scopedPreset -notmatch '(?m)^- id: fin-value$'){throw 'scoped preset plugins missing'}
+ $localBlock="# BEGIN managed local Fin Value config`n  config:`n    timeoutMs: 12345`n# END managed local Fin Value config`n"
+ $scopedPreset=[regex]::Replace($scopedPreset,'(?m)^(  name: dsh-fin-value\r?\n)',{param($m) $m.Value+$localBlock},1)
+ $scopedPreset|Set-Content -LiteralPath $scopedPresetPath -Encoding UTF8 -NoNewline
+ & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'packages/dsh-alfred/scripts/install-preset.ps1') -DshHome $presetTemp -Json|Out-Null
+ if((Get-Content -LiteralPath $scopedPresetPath -Raw) -notmatch 'timeoutMs: 12345'){throw 'scoped preset update discarded local Fin Value settings'}
+}finally{Remove-Item -LiteralPath $presetTemp -Recurse -Force -ErrorAction SilentlyContinue}
 $statusBefore=& git -C $root status --porcelain
 & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'alfred.ps1') bootstrap -DryRun -Json|Out-Null
 $statusAfter=& git -C $root status --porcelain

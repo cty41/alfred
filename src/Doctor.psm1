@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'Config.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'AlfredScope.psm1') -Force
 
 function Test-AlfredCommand {
     param([Parameter(Mandatory)][string]$Name)
@@ -45,7 +46,9 @@ function Invoke-AlfredDoctor {
     if (-not $Quick) {
         foreach ($recommended in @('node','npm','uv','pnpm')) { if (-not $runtime[$recommended]) { $issues.Add("runtime-missing:$recommended") } }
     }
-    New-AlfredResult -Command 'doctor' -Status $(if ($issues.Count -eq 0) {'ok'} else {'issues'}) -Issues $issues.ToArray() -Data @{ quick=[bool]$Quick; tools=$tools.ToArray(); runtime=$runtime }
+    $activation=Get-AlfredActivationStatus -Cwd ([string](Get-Location))
+    if($activation.state -eq 'config-invalid'){$issues.Add([string]$activation.reasonCode)}
+    New-AlfredResult -Command 'doctor' -Status $(if ($issues.Count -eq 0) {'ok'} else {'issues'}) -Issues $issues.ToArray() -Data @{ quick=[bool]$Quick; activation=[ordered]@{state=$activation.state;enabled=$activation.enabled;source=$activation.source;reasonCode=$activation.reasonCode;activationModel=$activation.activationModel}; tools=$tools.ToArray(); runtime=$runtime }
 }
 
 Export-ModuleMember -Function Invoke-AlfredDoctor
