@@ -50,7 +50,7 @@ describe('dsh-alfred integration', () => {
     await expect(address.execute({ address: '先生' }, { agent: { session: { id: 'top-level', projectionValues: { agentPreset: 'alfred' }, meta: {} } } })).rejects.toThrow('本轮直接用户')
   })
 
-  it('records legacy-global visibility for the Web client without changing domain authority', () => {
+  it.each([false, true])('records ignorable Web visibility metadata (legacyGlobal=%s)', (legacyGlobal) => {
     const listeners = new Map<string, (...args: any[]) => unknown>()
     const appended: unknown[] = []
     apply({
@@ -58,12 +58,28 @@ describe('dsh-alfred integration', () => {
       skills: { register: () => undefined, list: async () => [] },
       sessionProjections: { register: () => undefined, stateOf: () => false },
       on: (event: string, listener: (...args: any[]) => unknown) => listeners.set(event, listener),
-    } as never, { alfredRoot: process.cwd(), legacyGlobal: true })
+    } as never, { alfredRoot: process.cwd(), legacyGlobal })
     listeners.get('agent/session-start')?.({
       source: 'resume',
-      agent: { id: 'a', session: { id: 's', header: { agentPreset: 'standard' }, append: (type: string, data: unknown) => appended.push({ type, data }) }, inject: () => undefined },
+      agent: { id: 'a', session: { id: 's', header: { agentPreset: 'standard' }, appendIgnorable: (type: string, data: unknown) => appended.push({ type, data, ignorable: true }) }, inject: () => undefined },
     })
-    expect(appended).toEqual([{ type: 'alfred/legacy-global', data: {} }])
+    expect(appended).toEqual([{ type: legacyGlobal ? 'alfred/legacy-global' : 'alfred/available', data: {}, ignorable: true }])
+  })
+
+  it('rejects an older harness before it can append an unreadable visibility event', () => {
+    const listeners = new Map<string, (...args: any[]) => unknown>()
+    const appended: unknown[] = []
+    apply({
+      tools: { register: () => undefined, schemas: () => [] },
+      skills: { register: () => undefined, list: async () => [] },
+      sessionProjections: { register: () => undefined, stateOf: () => false },
+      on: (event: string, listener: (...args: any[]) => unknown) => listeners.set(event, listener),
+    } as never, { alfredRoot: process.cwd() })
+    expect(() => listeners.get('agent/session-start')?.({
+      source: 'startup',
+      agent: { id: 'a', session: { id: 's', header: { agentPreset: 'standard' }, append: (...args: unknown[]) => appended.push(args) }, inject: () => undefined },
+    })).toThrow('requires DSH Session.appendIgnorable')
+    expect(appended).toEqual([])
   })
 
   it('prioritizes explicit natural Alfred invocation and leaves slash Skill injection authoritative', async () => {

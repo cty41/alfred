@@ -128,4 +128,7 @@ $statusBefore=& git -C $root status --porcelain
 & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'alfred.ps1') bootstrap -DryRun -Json|Out-Null
 $statusAfter=& git -C $root status --porcelain
 if(($statusBefore -join "`n") -ne ($statusAfter -join "`n")){throw 'bootstrap dry-run changed repository state'}
+$recoveryTests=@('preview-alfred-session-events.test.ts','alfred-session-repair-codec.test.ts','alfred-session-repair.test.ts','windows-session-repair-safety.test.ts')|ForEach-Object{Join-Path $PSScriptRoot $_}
+& node --test @recoveryTests
+if($LASTEXITCODE -ne 0){throw 'offline session recovery regression suite failed'}
 'alfred tests passed'

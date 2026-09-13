@@ -157,7 +157,12 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
   runtime.on('agent/session-start', ({ agent, source }: any) => {
     if (excluded.has(presetOf(agent)) || !isTopLevelHumanAgent(agent)) return
     if (runtime.sessionProjections.stateOf(agent.session, 'alfredAvailable') !== true) {
-      agent.session.append(config.legacyGlobal ? 'alfred/legacy-global' : 'alfred/available', {})
+      // This is optional Web visibility metadata, not model input or domain state.
+      // Older DSH append() silently drops envelope options; never fall back to it.
+      if (typeof agent.session.appendIgnorable !== 'function') {
+        throw new Error('dsh-alfred requires DSH Session.appendIgnorable; update/build DSH and restart before starting Alfred sessions')
+      }
+      agent.session.appendIgnorable(config.legacyGlobal ? 'alfred/legacy-global' : 'alfred/available', {})
     }
     const key = sessionKey(agent)
     if (source === 'startup' || source === 'clear' || !sessions.has(key)) {
