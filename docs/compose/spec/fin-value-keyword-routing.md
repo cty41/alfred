@@ -3,7 +3,7 @@ feature: fin-value-keyword-routing
 status: delivered
 updated: 2026-09-14
 branch: main
-commits: uncommitted # pending user commit request
+commits: 72fcee0 # local main
 ---
 
 # Fin Value 关键词路由扩展
