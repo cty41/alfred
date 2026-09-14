@@ -41,6 +41,33 @@ describe('ALF capability routing', () => {
     expect(matchRoutes('ALF 有哪些能力').some(route => route.id === 'investment-strategy-write')).toBe(false)
   })
 
+  it('routes bare reduce/add/exit wording and held names to portfolio without write intent', () => {
+    const reduce = matchRoutes('金山云减仓计划，下一笔减仓什么条件执行')
+    expect(reduce[0]?.id).toBe('investment-portfolio')
+    expect(reduce.some(route => route.id === 'investment-strategy-write')).toBe(false)
+
+    const bare = matchRoutes('下一笔减仓应该什么条件')
+    expect(bare[0]?.id).toBe('investment-portfolio')
+    expect(bare.some(route => route.id === 'investment-strategy-write')).toBe(false)
+
+    expect(matchRoutes('小米减持和止盈')[0]?.id).toBe('investment-portfolio')
+    expect(matchRoutes('清仓进度')[0]?.id).toBe('investment-portfolio')
+  })
+
+  it('keeps valuation research ahead of portfolio when research terms dominate', () => {
+    const matched = matchRoutes('分析金山云估值和财报')
+    expect(matched[0]?.id).toBe('hk-equity-research')
+    expect(matched[1]?.id).toBe('investment-research-archive')
+    expect(matched.some(route => route.id === 'investment-strategy-write')).toBe(false)
+    expect(matchRoutes('金山云现在还剩多少股')[0]?.id).toBe('investment-portfolio')
+  })
+
+  it('still routes explicit strategy persistence through write guard', () => {
+    const matched = matchRoutes('把减仓计划保存下来')
+    expect(matched[0]?.id).toBe('investment-strategy-write')
+    expect(matched[0]?.mutation).toBe('workflow-dependent')
+  })
+
   it('extracts a preferred address only from explicit direct wording', () => {
     expect(preferredAddressFromText('以后请叫我先生')).toBe('先生')
     expect(preferredAddressFromText('please call me Bruce')).toBe('Bruce')
