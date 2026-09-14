@@ -11,6 +11,7 @@ packages/*/dist/
 /.research/
 /research/
 /*.pdf
+/*/*.pdf
 /*.pdf.txt
 /*.html
 /*.jsonp
@@ -18,3 +19,8 @@ packages/*/dist/
 /sse-*.js
 /tmp_*
 /presentation_p*.png
+/*.png
+/generated-*.png
+/.playwright-cli/
+/.agents/alfred.json
+/.agents/skills/
