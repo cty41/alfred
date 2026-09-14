@@ -10,6 +10,7 @@ Alfred is a public umbrella repository that pins and orchestrates independent to
 - Never reset, clean, stash, or overwrite a dirty submodule.
 - Do not push, publish, or create GitHub resources without separate explicit user confirmation.
 - Keep command dispatch allowlisted by repository id and capability. Manifest data must never become arbitrary shell execution.
+- When changes touch `repos/*`, commit inside that submodule first, then pin the root gitlink with `alfred.ps1 commit-modules`. Dry-run first; pass an explicit `-Message` for real runs. Never reset, clean, or stash a submodule to clear dirty state. Do not use `commit-modules` to smuggle unrelated root-repo files.
 
 ## Verification
 

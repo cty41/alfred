@@ -25,6 +25,7 @@ packages/dsh-alfred
 - `doctor`: 只读环境、checkout 和 scoped activation 健康。
 - `capabilities`: 只读能力事实。
 - `update-locks`: 维护者显式逐个更新三个受管顶层gitlink；不递归推进子仓自行拥有的nested gitlinks，任何失败都回退本轮已更新checkout，dirty子模块直接拒绝。
+- `commit-modules`: 把 dirty 子模块以显式 `-Message` 提交到其当前分支，并只在根仓钉对应 gitlink；支持 `-DryRun`；不 push、不动其他根仓文件、不为清 dirty 而 reset/clean/stash。
 
 所有 mutating commands 的 `-DryRun` 只返回计划和 blocker，不执行网络或文件写入。子模块不得被 reset、clean、stash 或隐式切换远端版本。
 

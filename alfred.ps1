@@ -1,12 +1,15 @@
 [CmdletBinding()]
 param(
-    [Parameter(Position=0,Mandatory)][ValidateSet('doctor','capabilities','bootstrap','sync','install','configure','update-locks')][string]$Command,
+    [Parameter(Position=0,Mandatory)][ValidateSet('doctor','capabilities','bootstrap','sync','install','configure','update-locks','commit-modules')][string]$Command,
     [switch]$Quick,[switch]$DryRun,[switch]$Json,
     [ValidateSet('web','headless','all')][string]$Profile='all',
     [ValidateSet('User','Project')][string]$Scope='User',
     [string]$ProjectRoot,
     [switch]$Enable,[switch]$Disable,[switch]$MigrateLegacy,
-    [string]$DshCheckout
+    [string]$DshCheckout,
+    [string]$Message,
+    [string]$RootMessage,
+    [string[]]$Tools
 )
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot 'src/Config.psm1') -Force
@@ -17,6 +20,7 @@ Import-Module (Join-Path $PSScriptRoot 'src/Sync.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'src/Install.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'src/Configure.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'src/UpdateLocks.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'src/CommitModules.psm1') -Force
 $result=switch($Command){
  'doctor'{Invoke-AlfredDoctor -Quick:$Quick}
  'capabilities'{Invoke-AlfredCapabilities -Quick:$Quick}
@@ -25,6 +29,7 @@ $result=switch($Command){
  'install'{Invoke-AlfredInstall -Profile $Profile -DshCheckout $DshCheckout -DryRun:$DryRun}
  'configure'{Invoke-AlfredConfigure -Scope $Scope -ProjectRoot $ProjectRoot -Profile $Profile -DshCheckout $DshCheckout -Enable:$Enable -Disable:$Disable -MigrateLegacy:$MigrateLegacy -DryRun:$DryRun}
  'update-locks'{Invoke-AlfredUpdateLocks -DryRun:$DryRun}
+ 'commit-modules'{Invoke-AlfredCommitModules -DryRun:$DryRun -Message $Message -RootMessage $RootMessage -Tools $Tools}
 }
 if($Json){$result|ConvertTo-Json -Depth 14}else{"[$($result.status)] $($result.command)";foreach($change in @($result.changes)){"  change: $change"};foreach($issue in @($result.issues)){"  issue: $issue"}}
 if($result.status -in @('failed','issues')){exit 1}

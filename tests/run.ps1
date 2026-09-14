@@ -27,10 +27,15 @@ if($capabilities.command -ne 'capabilities' -or @($capabilities.data.capabilitie
 $capJson=$capabilities|ConvertTo-Json -Depth 14
 if($capJson -match [regex]::Escape($HOME)){throw 'capability output leaked home path'}
 $dryRunStatusBefore=& git -C $root status --porcelain
-foreach($command in @('bootstrap','sync','install','update-locks')){
+foreach($command in @('bootstrap','sync','install','update-locks','commit-modules')){
  $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $root 'alfred.ps1'),$command,'-DryRun','-Json')
  if($command -eq 'install'){$args+=@('-Profile','all')}
  $result=& $powerShell @args|ConvertFrom-Json
+ if($command -eq 'commit-modules'){
+  if($result.status -notin @('ok','planned')){throw "commit-modules dry-run was not ok/planned"}
+  if($result.data.pushes -ne $false){throw 'commit-modules dry-run must not push'}
+  continue
+ }
  if($result.status -ne 'planned' -and -not ($result.status -eq 'failed' -and (@($result.issues) -join ',') -match 'submodule-(dirty|status-unavailable)')){throw "$command dry-run was not planned or safely blocked"}
 }
 $configureArgs=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $root 'alfred.ps1'),'configure','-Scope','Project','-ProjectRoot',$root,'-Profile','web','-DshCheckout',$root,'-Enable','-DryRun','-Json')
