@@ -33,12 +33,23 @@ function Resolve-KbVaultPath {
 
 function Assert-KbPathWithin {
     param([Parameter(Mandatory)][string]$Root,[Parameter(Mandatory)][string]$Path)
-    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+    $separators = [char[]]@([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd($separators) + [IO.Path]::DirectorySeparatorChar
     $pathFull = [IO.Path]::GetFullPath($Path)
-    if (-not $pathFull.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)) {
+    $comparison = if ($env:OS -eq 'Windows_NT') { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+    if (-not $pathFull.StartsWith($rootFull, $comparison)) {
         throw "Path escapes vault boundary: $pathFull"
     }
     return $pathFull
+}
+
+function Get-KbManagedApplicationPath {
+    param([Parameter(Mandatory)][string]$VaultPath,[Parameter(Mandatory)][ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')][string]$ApplicationId)
+    $config = Read-KbJson (Join-Path $VaultPath 'knowledge-config.json')
+    $managedRelative = if ($config -and $config.managedDirectory) { [string]$config.managedDirectory } else { '00_System/managed' }
+    if ([IO.Path]::IsPathRooted($managedRelative)) { throw 'managedDirectory must be relative to the vault.' }
+    $managed = Assert-KbPathWithin -Root $VaultPath -Path (Join-Path $VaultPath $managedRelative)
+    Assert-KbPathWithin -Root $VaultPath -Path (Join-Path $managed "runtime-data/$ApplicationId")
 }
 
 function Get-KbToolCollections {
@@ -74,7 +85,7 @@ function Get-KbFileTreeHash {
     param([Parameter(Mandatory)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
     $lines = Get-ChildItem -LiteralPath $Path -Recurse -File -Force |
-        Where-Object { $_.Name -ne 'kit-lock.json' } |
+        Where-Object { $_.Name -ne 'kit-lock.json' -and $_.FullName -notmatch '[\\/]runtime-data[\\/]' } |
         Sort-Object FullName | ForEach-Object {
             $rootFull = [IO.Path]::GetFullPath($Path).TrimEnd('\') + '\'
             $rel = $_.FullName.Substring($rootFull.Length)
@@ -88,4 +99,4 @@ function Get-KbFileTreeHash {
     finally { $sha.Dispose() }
 }
 
-Export-ModuleMember -Function Get-KbProfilePath,Read-KbJson,Write-KbJson,Resolve-KbVaultPath,Assert-KbPathWithin,Get-KbToolCollections,Get-KbFileTreeHash
+Export-ModuleMember -Function Get-KbProfilePath,Read-KbJson,Write-KbJson,Resolve-KbVaultPath,Assert-KbPathWithin,Get-KbManagedApplicationPath,Get-KbToolCollections,Get-KbFileTreeHash
