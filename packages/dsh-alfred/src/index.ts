@@ -112,7 +112,7 @@ export function apply(ctx: Context, config: ControlConfig = {}): void {
         summary: route.summary,
         declaration: 'declared',
         runtimeVisibility: excluded.has(presetOf(agent)) ? 'excluded-mode' : runtimeVisible ? 'visible' : partiallyVisible ? 'partial' : 'not-visible',
-        entryPoints: { skills: skillVisibility, tools: toolVisibility },
+        entryPoints: { skills: skillVisibility, tools: toolVisibility, commands: route.commands ?? [], documents: route.documents ?? [] },
         mutationPolicy: route.mutation,
         actionability: capabilityActionability(local?.actionability, excluded.has(presetOf(agent)), runtimeVisible),
       }

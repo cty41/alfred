@@ -30,12 +30,13 @@ function Read-AlfredManifest {
     if ($manifest.schemaVersion -ne '2.0') { throw "Unsupported manifest schemaVersion: $($manifest.schemaVersion)" }
     $ids = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $paths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    $allowedRoles = @('control-kit','skill-pack','dsh-domain-tool')
-    $allowedCapabilities = @('vault-control','user-skills','dsh-bundle-web','dsh-bundle-headless')
+    $allowedRoles = @('control-kit','skill-pack','dsh-domain-tool','domain-tool')
+    $allowedCapabilities = @('vault-control','user-skills','dsh-bundle-web','dsh-bundle-headless','game-art-production')
     $allowedMappings = @{
         'knowledge-base-kit'=@('knowledge-base-kit.bootstrap','knowledge-base-kit.verify','knowledge-base-kit.probe')
         'skills'=@('skills.bootstrap','skills.verify','skills.install','skills.probe')
         'fin-value'=@('fin-value.bootstrap','fin-value.verify','fin-value.install','fin-value.probe')
+        'maliang'=@('maliang.verify','maliang.probe')
     }
     if(@($manifest.tools).Count -ne $allowedMappings.Count){throw 'Manifest must declare exactly the managed tool set'}
     foreach ($tool in @($manifest.tools)) {
@@ -54,6 +55,10 @@ function Read-AlfredManifest {
         $actualMappings=@($operationNames|ForEach-Object{[string]$tool.operations.$_}|Sort-Object)
         if(($actualMappings -join "`n") -ne (@($allowedMappings[$id]|Sort-Object) -join "`n")){throw "Incomplete operation mapping for $id"}
         foreach ($capability in @($tool.provides)) { if ([string]$capability -notin $allowedCapabilities) { throw "Invalid capability for ${id}: $capability" } }
+        if($id -eq 'maliang'){
+            if([string]$tool.repository -ne 'https://github.com/cty41/maliang.git' -or [string]$tool.role -ne 'domain-tool'){throw 'MaLiang repository or role does not match the fixed source-only declaration'}
+            if((@($tool.provides|ForEach-Object{[string]$_}) -join "`n") -ne 'game-art-production'){throw 'MaLiang provides must be exactly game-art-production'}
+        }
     }
     $capabilityIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $allowedEntries = @{
@@ -67,16 +72,17 @@ function Read-AlfredManifest {
         'investment-research-archive'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_research_archive_status','fin_value_prepare_research_archive','fin_value_commit_research_archive','fin_value_research_sources','fin_value_read_research_source','fin_value_archive_official_document');commands=@();mutation='confirm-before-write'}
         'investment-portfolio'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_portfolio_context');commands=@();mutation='read-only'}
         'investment-strategy-write'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_save_portfolio_strategy');commands=@();mutation='workflow-dependent'}
-        'investment-ledger'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_prepare_execution','fin_value_commit_execution','fin_value_prepare_initial_position','fin_value_commit_initial_position');commands=@();mutation='confirm-before-write'}
+        'investment-ledger'=@{module='fin-value';skills=@('fin-value-investment-research');tools=@('fin_value_prepare_execution','fin_value_commit_execution','fin_value_prepare_initial_position','fin_value_commit_initial_position');commands=@();documents=@();mutation='confirm-before-write'}
+        'game-art-production'=@{module='maliang';skills=@();tools=@();commands=@('maliang-art');documents=@('repos/maliang/README.md');mutation='read-only'}
     }
     foreach ($capability in @($manifest.capabilities)) {
         $capabilityId = [string]$capability.id
         if ($capabilityId -notmatch '^[a-z0-9][a-z0-9-]*$' -or -not $capabilityIds.Add($capabilityId) -or -not $allowedEntries.ContainsKey($capabilityId)) { throw "Invalid or duplicate capability id: $capabilityId" }
         $allowed=$allowedEntries[$capabilityId]
         if ([string]$capability.module -ne [string]$allowed.module) { throw "Capability $capabilityId references unsupported module: $($capability.module)" }
-        foreach($kind in @('skills','tools','commands')){
-            $actualEntry=@($capability.entryPoints.$kind|ForEach-Object{[string]$_}|Sort-Object)
-            $allowedEntry=@($allowed.$kind|ForEach-Object{[string]$_}|Sort-Object)
+        foreach($kind in @('skills','tools','commands','documents')){
+            $actualEntry=if($capability.entryPoints.psobject.Properties.Name -contains $kind){@($capability.entryPoints.$kind|ForEach-Object{[string]$_}|Sort-Object)}else{@()}
+            $allowedEntry=if($allowed.ContainsKey($kind)){@($allowed.$kind|ForEach-Object{[string]$_}|Sort-Object)}else{@()}
             if(($actualEntry -join "`n") -ne ($allowedEntry -join "`n")){throw "Capability $capabilityId has unsupported ${kind} entry points"}
         }
         $summary = [string]$capability.summary

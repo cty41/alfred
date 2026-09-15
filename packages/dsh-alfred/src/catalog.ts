@@ -8,6 +8,8 @@ export interface CapabilityRoute {
   keywords: string[]
   skills: string[]
   tools: string[]
+  commands?: string[]
+  documents?: string[]
   mutation: 'read-only' | 'confirm-before-write' | 'workflow-dependent'
 }
 
@@ -23,6 +25,7 @@ export const ROUTES: readonly CapabilityRoute[] = [
   { id: 'investment-portfolio', module: 'fin-value', summary: '读取本地投资持仓和策略上下文', keywords: ['我的持仓', '仓位', '组合风险', '减仓条件', 'portfolio', '减仓', '加仓', '清仓', '建仓', '持仓', '减持', '止盈', '金山云', '中海', '小米'], skills: ['fin-value-investment-research'], tools: ['fin_value_portfolio_context'], mutation: 'read-only' },
   { id: 'investment-strategy-write', module: 'fin-value', summary: '仅在直接用户明确要求保存时写入版本化建仓、减仓或清仓策略；能力提示和研究建议不授权写入', keywords: ['记录策略', '保存策略', '批准策略', '落地策略', '加仓计划', '建仓计划', '减仓计划', '清仓计划', '目标仓位', '调整策略'], skills: ['fin-value-investment-research'], tools: ['fin_value_save_portfolio_strategy'], mutation: 'workflow-dependent' },
   { id: 'investment-ledger', module: 'fin-value', summary: '在预览和后续明确确认后登记已真实发生的成交', keywords: ['已经成交', '登记成交', '初始持仓', '成交记录'], skills: ['fin-value-investment-research'], tools: ['fin_value_prepare_execution', 'fin_value_commit_execution', 'fin_value_prepare_initial_position', 'fin_value_commit_initial_position'], mutation: 'confirm-before-write' },
+  { id: 'game-art-production', module: 'maliang', summary: '发现并检查 MaLiang 的可审计游戏美术工作流；仅引导阅读固定源码文档或自行调用 CLI，不代运行命令或修改资产', keywords: ['游戏美术', '美术资产', '角色立绘', '精灵图', '姿势草图', 'game art', 'maliang', '马良'], skills: [], tools: [], commands: ['maliang-art'], documents: ['repos/maliang/README.md'], mutation: 'read-only' },
 ]
 
 export function loadRoutes(alfredRoot: string): readonly CapabilityRoute[] {

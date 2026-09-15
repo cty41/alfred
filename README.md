@@ -1,12 +1,13 @@
 # Alfred (ALF)
 
-Alfred（简称 **ALF**）是个人 Agent 能力栈的总控制面。它固定并协调三个独立 Git 子模块，安装跨领域的 DSH 控制 bundle，并以可核对的事实展示能力状态；私人知识、凭据和投资账本不进入本仓库。
+Alfred（简称 **ALF**）是个人 Agent 能力栈的总控制面。它固定并协调四个独立 Git 子模块，安装跨领域的 DSH 控制 bundle，并以可核对的事实展示能力状态；私人知识、凭据和投资账本不进入本仓库。
 
 ## 默认组件
 
 - `knowledge-base-kit`：私人知识库的确定性控制面
 - `skills`：用户级渐进披露 Skills
 - `fin-value`：港股价值研究与确认式本地成交登记领域 bundle
+- `maliang`：可审计游戏美术工作流的只读发现与健康检查；不由 Alfred 代执行或修改资产
 - `packages/dsh-alfred`：ALF persona、`alfred_capabilities`、称呼偏好、意图路由与 Web 能力入口
 
 安装只准备组件，不再等同于对所有会话启用。项目或用户配置会在基础 Standard/PTC preset 挂载后，为该 Agent 的隔离 scope 附加 ALF 与 Fin Value；Minimal 排除，`alfred` preset 只作为 hidden 历史兼容项。项目可用 `<项目>/.agents/alfred.json` 启用，用户可用 `~/.agents/alfred.json` 全局启用。`/alf`、`/alfred`、`alf`、`alfred` 都会先核对当前能力再加载相关领域 Skill。

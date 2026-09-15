@@ -17,7 +17,7 @@
         "id":{"type":"string"},"module":{"type":"string"},"summary":{"type":"string"},"entryPoints":{"type":"object"},
         "mutationPolicy":{"enum":["read-only","confirm-before-write","workflow-dependent"]},
         "facets":{"type":"object","required":["declaration","source","build","installation","runtimeVisibility","configuration","health","freshness"]},
-        "actionability":{"enum":["unavailable","source-attention-required","bootstrap-required","install-status-unknown","attention-required","runtime-verification-required"]},
+        "actionability":{"enum":["unavailable","source-attention-required","bootstrap-required","install-status-unknown","attention-required","source-ready","runtime-verification-required"]},
         "reasonCodes":{"type":"array","items":{"type":"string"}}
       },"additionalProperties":false}}
     },"additionalProperties":false}

@@ -4,7 +4,10 @@ Import-Module (Join-Path $root 'src/Config.psm1') -Force
 Import-Module (Join-Path $root 'src/Receipt.psm1') -Force
 Import-Module (Join-Path $root 'src/AlfredScope.psm1') -Force
 $manifest=Read-AlfredManifest -Root $root
-if(@($manifest.tools).Count -ne 3){throw 'expected exactly three pinned modules'}
+if(@($manifest.tools).Count -ne 4){throw 'expected exactly four managed modules'}
+$maliang=@($manifest.tools|Where-Object id -eq 'maliang')
+if($maliang.Count -ne 1 -or [string]$maliang[0].path -ne 'repos/maliang' -or [string]$maliang[0].repository -ne 'https://github.com/cty41/maliang.git'){throw 'MaLiang source declaration mismatch'}
+if((@($maliang[0].operations.psobject.Properties.Name|Sort-Object) -join ',') -ne 'probe,verify'){throw 'MaLiang must expose verify and probe operations only'}
 if(@($manifest.capabilities).Count -lt 8){throw 'operation-level capability catalog is incomplete'}
 if(@($manifest.capabilities.id|Sort-Object -Unique).Count -ne @($manifest.capabilities).Count){throw 'capability ids must be unique'}
 $tempManifestRoot=Join-Path ([IO.Path]::GetTempPath()) "alfred-manifest-$([guid]::NewGuid())"
@@ -16,14 +19,38 @@ try{
  $rejected=$false
  try{Read-AlfredManifest -Root $tempManifestRoot|Out-Null}catch{$rejected=$true}
  if(-not $rejected){throw 'manifest accepted a non-allowlisted tool entry point'}
+ $tampered=Get-Content -LiteralPath (Join-Path $root 'alfred.tools.json') -Raw|ConvertFrom-Json
+ ($tampered.capabilities|Where-Object id -eq 'game-art-production').entryPoints.commands=@('powershell -Command arbitrary')
+ $tampered|ConvertTo-Json -Depth 12|Set-Content -LiteralPath (Join-Path $tempManifestRoot 'alfred.tools.json') -Encoding UTF8
+ $rejected=$false
+ try{Read-AlfredManifest -Root $tempManifestRoot|Out-Null}catch{$rejected=$true}
+ if(-not $rejected){throw 'manifest accepted an arbitrary MaLiang command'}
 }finally{Remove-Item -LiteralPath $tempManifestRoot -Recurse -Force -ErrorAction SilentlyContinue}
 $powerShell=if(Get-Command pwsh -ErrorAction SilentlyContinue){'pwsh'}else{'powershell'}
 $doctor=& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'alfred.ps1') doctor -Quick -Json|ConvertFrom-Json
-if($doctor.command -ne 'doctor' -or @($doctor.data.tools).Count -ne 3){throw 'doctor did not inspect every module'}
+if($doctor.command -ne 'doctor' -or @($doctor.data.tools).Count -ne 4){throw 'doctor did not inspect every module'}
 $capabilitySource=Get-Content -LiteralPath (Join-Path $root 'src/Capabilities.psm1') -Raw
-if($capabilitySource -match 'ExecutionPolicy|Invoke-Expression'){throw 'read-only capability probe may not execute submodule code'}
+if($capabilitySource -match 'ExecutionPolicy|Invoke-Expression|Start-Process'){throw 'read-only capability probe may not execute submodule code'}
+$capabilityModule=Import-Module (Join-Path $root 'src/Capabilities.psm1') -Force -PassThru
+$maliangProbeTemp=Join-Path ([IO.Path]::GetTempPath()) "alfred-maliang-probe-$([guid]::NewGuid())"
+try{
+ New-Item -ItemType Directory -Path (Join-Path $maliangProbeTemp 'src/maliang_art') -Force|Out-Null
+ "# MaLiang`n`n## CLI`n"|Set-Content -LiteralPath (Join-Path $maliangProbeTemp 'README.md') -Encoding UTF8
+ "[project]`nname = `"maliang-game-art`"`nversion = `"0.1.0`"`n[project.scripts]`nmaliang-art = `"maliang_art.cli:main`"`n"|Set-Content -LiteralPath (Join-Path $maliangProbeTemp 'pyproject.toml') -Encoding UTF8
+ "__version__ = `"0.1.0`"`n"|Set-Content -LiteralPath (Join-Path $maliangProbeTemp 'src/maliang_art/__init__.py') -Encoding UTF8
+ $maliangProbe=& $capabilityModule {param($checkout) Invoke-AlfredFixedProbe -ProbeId 'maliang.probe' -Checkout $checkout} $maliangProbeTemp
+ if($maliangProbe.health -ne 'healthy' -or $maliangProbe.version -ne '0.1.0'){throw 'MaLiang fixed source/version probe failed'}
+ "__version__ = `"9.9.9`"`n"|Set-Content -LiteralPath (Join-Path $maliangProbeTemp 'src/maliang_art/__init__.py') -Encoding UTF8
+ $maliangProbe=& $capabilityModule {param($checkout) Invoke-AlfredFixedProbe -ProbeId 'maliang.probe' -Checkout $checkout} $maliangProbeTemp
+ if($maliangProbe.health -ne 'unavailable' -or 'source-version-mismatch' -notin @($maliangProbe.reasonCodes)){throw 'MaLiang probe accepted mismatched source version'}
+}finally{Remove-Item -LiteralPath $maliangProbeTemp -Recurse -Force -ErrorAction SilentlyContinue}
+Import-Module (Join-Path $root 'src/Receipt.psm1') -Force
+Import-Module (Join-Path $root 'src/AlfredScope.psm1') -Force
 $capabilities=& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'alfred.ps1') capabilities -Quick -Json|ConvertFrom-Json
 if($capabilities.command -ne 'capabilities' -or @($capabilities.data.capabilities).Count -ne @($manifest.capabilities).Count){throw 'capability output mismatch'}
+$maliangCapability=@($capabilities.data.capabilities|Where-Object id -eq 'game-art-production')
+if($maliangCapability.Count -ne 1 -or [string]$maliangCapability[0].mutationPolicy -ne 'read-only'){throw 'MaLiang read-only capability missing'}
+if(-not(Test-Path -LiteralPath (Join-Path $root 'repos/maliang')) -and ($maliangCapability[0].actionability -ne 'unavailable' -or 'source-not-present' -notin @($maliangCapability[0].reasonCodes))){throw 'missing MaLiang source was not reported as expected'}
 $capJson=$capabilities|ConvertTo-Json -Depth 14
 if($capJson -match [regex]::Escape($HOME)){throw 'capability output leaked home path'}
 $dryRunStatusBefore=& git -C $root status --porcelain

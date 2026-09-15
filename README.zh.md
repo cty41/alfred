@@ -1,6 +1,6 @@
 # Alfred（ALF）工具总仓
 
-Alfred（简称 ALF）是个人 Agent 能力栈的公开总控制面。它固定 `knowledge-base-kit`、`skills`、`fin-value` 三个独立子模块，并安装根仓 `dsh-alfred` 控制 bundle；私人 vault、凭据与投资账本不进入 Git。
+Alfred（简称 ALF）是个人 Agent 能力栈的公开总控制面。它固定 `knowledge-base-kit`、`skills`、`fin-value`、`maliang` 四个独立子模块，并安装根仓 `dsh-alfred` 控制 bundle；私人 vault、凭据与投资账本不进入 Git。
 
 ## 使用
 

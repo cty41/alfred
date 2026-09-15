@@ -1,6 +1,6 @@
 # Architecture
 
-Alfred（ALF）是 umbrella control plane，不是 monorepo。根仓用 Git gitlinks 固定三个独立仓库；`alfred.tools.json` 是模块与 operation-level capabilities 的受信任声明源。
+Alfred（ALF）是 umbrella control plane，不是 monorepo。根仓设计为用 Git gitlinks 固定四个独立仓库；`alfred.tools.json` 是模块与 operation-level capabilities 的受信任声明源。第四个模块 MaLiang 是 source-only domain tool；在父仓加入并固定 gitlink 前，其 `source-not-present` 状态是预期事实。
 
 ```text
 alfred.ps1
@@ -8,6 +8,7 @@ alfred.ps1
   -> knowledge-base-kit (vault control)
   -> skills (user-level progressive disclosure)
   -> fin-value (DSH investment domain)
+  -> maliang (read-only game-art source discovery)
 
 packages/dsh-alfred
   -> ALF persona + preferred-address control
@@ -18,13 +19,13 @@ packages/dsh-alfred
 
 ## Fixed lifecycle
 
-- `bootstrap`: 初始化当前 gitlinks 指向的全部子模块，并构建 ALF 与 Fin Value。
+- `bootstrap`: 初始化当前 gitlinks 指向的全部子模块，并构建 ALF 与 Fin Value；MaLiang 仅同步固定源码，不安装包、不构建也不执行其代码。
 - `sync`: 只对齐当前根仓 gitlinks；不访问 remote HEAD。
 - `install`: 安装 ALF per-Agent setup bootstrap、inactive dependency `dsh-fin-value`，以及仅供历史会话恢复的 hidden `alfred` compatibility preset；不新增可选 session mode。
 - `configure`: 在项目 `.agents/alfred.json` 或用户 `~/.agents/alfred.json` 显式启停，在同一 scope 管理 Skills，并迁移到 `dispatch-v1`；旧 global/scoped 激活迁移需独立显式参数。
 - `doctor`: 只读环境、checkout 和 scoped activation 健康。
 - `capabilities`: 只读能力事实。
-- `update-locks`: 维护者显式逐个更新三个受管顶层gitlink；不递归推进子仓自行拥有的nested gitlinks，任何失败都回退本轮已更新checkout，dirty子模块直接拒绝。
+- `update-locks`: 维护者显式逐个更新四个受管顶层gitlink；不递归推进子仓自行拥有的nested gitlinks，任何失败都回退本轮已更新checkout，dirty子模块直接拒绝。
 - `commit-modules`: 把 dirty 子模块以显式 `-Message` 提交到其当前分支，并只在根仓钉对应 gitlink；支持 `-DryRun`；不 push、不动其他根仓文件、不为清 dirty 而 reset/clean/stash。
 
 所有 mutating commands 的 `-DryRun` 只返回计划和 blocker，不执行网络或文件写入。子模块不得被 reset、clean、stash 或隐式切换远端版本。
@@ -44,7 +45,7 @@ packages/dsh-alfred
 - mutation policy
 - derived actionability
 
-CLI probe 不伪装成 runtime verification，也不执行子模块代码；DSH bundle 会额外通过 `ctx.tools.schemas(agent)` 和 `ctx.skills.list({ cwd, scope })` 合并实际可见性。根 manifest 只包含短摘要、关键词和固定allowlist entry points；它不包含任意命令文本，也不接受子模块返回的自由文本作为提示词。
+CLI probe 不伪装成 runtime verification，也不执行子模块代码；DSH bundle 会额外通过 `ctx.tools.schemas(agent)` 和 `ctx.skills.list({ cwd, scope })` 合并实际可见性。根 manifest 只包含短摘要、关键词和固定 allowlist entry points；它不接受子模块返回的自由文本作为提示词，也不把 manifest command 字段交给 shell。MaLiang 的固定 probe 只读取 pinned checkout 中的 `README.md`、`pyproject.toml` 和 `src/maliang_art/__init__.py`，核对项目/CLI 身份及版本一致性；`repos/maliang/README.md` 与 `maliang-art` 仅作为发现引用返回，ALF 不代为执行 CLI、安装 MaLiang 或修改资产。
 
 ## Standard dispatch and proactive routing
 
@@ -62,6 +63,7 @@ Profile 根层只运行不向模型注册能力的 `dsh-alfred/bootstrap`。DSH 
 - **knowledge-base-kit**：通用 vault 控制和非递归 capability status；不依赖 Alfred。
 - **skills**：通用用户 Skills；不放 Alfred 项目内容。
 - **Fin Value**：港股数据、估值、持仓、版本化建仓/减仓/清仓策略、确认式ledger write及小米云研究资料库；它拥有资料库检测、确认配置、只读查询和受限官方PDF新增，不拥有Alfred persona/help/routing。策略仅在直接用户明确要求保存完整方案时一次性原子写入，具体股票的实时策略只能以Fin Value私有数据库为权威来源。
+- **MaLiang**：可审计游戏美术记录与 CLI 的独立 source-only domain tool，只声明 `verify` 与 `probe` operation。Alfred 只验证/探测固定源码并把用户引向 pinned README 和 CLI 名称；不自动安装、不执行工作流、不生成或修改资产。
 - **LifeKnowledge**：可保存非权威投资理由和长期方法论，但不维护具体股票目标仓位、触发线或执行进度的第二事实源。
 
 Fin Value 运行时是 breaking rename：bundle `dsh-fin-value`、Skill `fin-value-investment-research`、tools `fin_value_*`，无旧 plugin/tool aliases。策略只公开`fin_value_save_portfolio_strategy`，能力提示、研究建议、预览或迁移提示不授权写入；真实成交和初始持仓的prepare/commit仍保持跨轮明确确认、token绑定/过期/单次使用和SQLite原子事务边界。
