@@ -7,3 +7,6 @@
 [submodule "repos/fin-value"]
 	path = repos/fin-value
 	url = https://github.com/cty41/fin-alfred.git
+[submodule "repos/maliang"]
+	path = repos/maliang
+	url = https://github.com/cty41/maliang.git
