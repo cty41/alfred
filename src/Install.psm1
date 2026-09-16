@@ -22,8 +22,9 @@ function Invoke-AlfredJsonInstaller {
 
 function Invoke-AlfredLoggedInstaller {
     param([string]$PowerShell,[string[]]$Arguments)
-    $output = @(& $PowerShell @Arguments 2>&1)
-    $exitCode = $LASTEXITCODE
+    $savedErrorActionPreference=$ErrorActionPreference
+    try{$ErrorActionPreference='Continue';$output=@(& $PowerShell @Arguments 2>&1);$exitCode=$LASTEXITCODE}
+    finally{$ErrorActionPreference=$savedErrorActionPreference}
     foreach($line in $output){[Console]::Error.WriteLine([string]$line)}
     $exitCode
 }
@@ -42,7 +43,6 @@ function Invoke-AlfredInstall {
     $changes=@('leave Skills dormant until explicit configure',"install lightweight dsh-alfred dispatch bootstrap for profile:$Profile","install dsh-fin-value as a plain lazy runtime dependency for profile:$Profile",'install only a hidden historical-session compatibility preset','write non-secret minimal receipts; restart DSH manually')
     if($DryRun){return New-AlfredResult -Command 'install' -Status 'planned' -Changes $changes -Data @{profile=$Profile;activationModel='lazy-domain-v1';migrationRequired=$legacy;localDshCheckout=[bool]$DshCheckout;privatePersistenceConfigured='not-managed-by-alfred-install';writes=$true;restartRequired=$true}}
     if($legacy){return New-AlfredResult -Command 'install' -Status 'failed' -Issues @('legacy-migration-confirmation-required') -Data @{requiredCommand='configure -MigrateLegacy'}}
-    if(-not $DshCheckout){return New-AlfredResult -Command 'install' -Status 'failed' -Issues @('dsh-checkout-required')}
     foreach($tool in @($manifest.tools|Where-Object id -in @('skills','fin-value'))){
       $checkout=Resolve-AlfredToolPath -Tool $tool -Root $root
       $expected=Get-AlfredExpectedGitlink -Root $root -Tool $tool
@@ -57,10 +57,12 @@ function Invoke-AlfredInstall {
     $powerShell=if(Get-Command pwsh -ErrorAction SilentlyContinue){'pwsh'}else{'powershell'}
     $results=[Collections.Generic.List[object]]::new();$issues=[Collections.Generic.List[object]]::new()
     foreach($component in $scripts){
+      $componentStage='preflight'
       if(-not(Test-Path -LiteralPath $component.path -PathType Leaf)){$issues.Add("installer-missing:$($component.id)");$results.Add(@{id=$component.id;status='failed'});continue}
       $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$component.path)+@($component.args)
       if($DshCheckout -and $component.id -ne 'skills'){$args+=@('-DshCheckout',$DshCheckout)}
       try{
+        $componentStage='installer'
         if($component.id -eq 'fin-value'){
           $execution=Invoke-AlfredJsonInstaller -PowerShell $powerShell -Arguments ($args+@('-Json'))
           if($execution.exitCode -ne 0 -or [string]$execution.result.status -ne 'ok'){
@@ -75,14 +77,16 @@ function Invoke-AlfredInstall {
           $exitCode=Invoke-AlfredLoggedInstaller -PowerShell $powerShell -Arguments $args
           if($exitCode -ne 0){throw 'installer failed'}
         }
+        $componentStage='source-version'
         $sourceCommit=(@(& git -C $component.checkout rev-parse HEAD 2>$null)|Select-Object -First 1)
+        $componentStage='receipt'
         Write-AlfredInstallReceipt -ToolId $component.id -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=$sourceCommit;profile=$Profile;profiles=@($(if($Profile -eq 'all'){@('web','headless')}else{@($Profile)}));activationModel='lazy-domain-v1';restartRequired=($component.id -ne 'skills')}|Out-Null
         $results.Add(@{id=$component.id;status='ok'})
       }
-      catch{$issues.Add("install-failed:$($component.id)");$results.Add(@{id=$component.id;status='failed'})}
+      catch{$issues.Add("install-failed:$($component.id):$componentStage");$results.Add(@{id=$component.id;status='failed'})}
     }
     $failedComponent=@($results.ToArray()|Where-Object status -eq 'failed'|Select-Object -First 1)
-    $failure=if($failedComponent.Count -and $failedComponent[0].failure){$failedComponent[0].failure}else{$null}
+    $failure=if($failedComponent.Count -and $failedComponent[0].psobject.Properties.Name -contains 'failure' -and $failedComponent[0].failure){$failedComponent[0].failure}else{$null}
     New-AlfredResult -Command 'install' -Status $(if($issues.Count){'issues'}else{'ok'}) -Changes $changes -Issues $issues.ToArray() -Data @{profile=$Profile;activationModel='lazy-domain-v1';components=$results.ToArray();privatePersistenceConfigured='not-managed-by-alfred-install';restartRequired=$true;failure=$failure}
 }
 Export-ModuleMember -Function Invoke-AlfredInstall,Test-AlfredDshProfileRunning

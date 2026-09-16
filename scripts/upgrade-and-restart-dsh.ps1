@@ -5,6 +5,9 @@ param(
     [string]$DshPackage = '@deepseek-ai/dsh@0.1.5-rc.2',
     [string]$TrustedHost = $env:DSH_TRUSTED_HOST,
     [int]$Port = 3080,
+    [switch]$MigrateLegacy,
+    [ValidateSet('User','Project')][string]$ActivationScope = 'Project',
+    [string]$ProjectRoot,
     [switch]$DryRun,
     [switch]$ConfirmUpgrade,
     [switch]$Json
@@ -77,6 +80,7 @@ try {
     $encodedLaunchCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launchCommand))
     $launchArguments = @('-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',$encodedLaunchCommand)
 
+    if([string]::IsNullOrWhiteSpace($ProjectRoot)){$ProjectRoot=$alfred}
     $changes = @('stop only matching DSH web processes',"install Alfred and Fin Value into the web profile via $launcher",'restart the existing DSH web profile')
     $installArguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$alfredScript,'install','-Profile','web')
     if ($dsh) { $installArguments += @('-DshCheckout',$dsh) }
@@ -84,14 +88,28 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'install-dry-run-failed' }
     try { $preview = $previewText | ConvertFrom-Json } catch { throw 'install-dry-run-returned-invalid-json' }
     if (-not $Json) { $previewText | Write-Host }
+    $migrationRequired=[bool]$preview.data.migrationRequired
+    $configureArguments=$null
+    $configurePreview=$null
+    if($migrationRequired){
+        $changes=@('migrate legacy/scoped ALF activation to lazy-domain-v1 across all managed profiles')+$changes
+        $configureArguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$alfredScript,'configure','-Scope',$ActivationScope,'-Profile','all','-Enable','-MigrateLegacy')
+        if($ActivationScope -eq 'Project'){$configureArguments+=@('-ProjectRoot',[IO.Path]::GetFullPath($ProjectRoot))}
+        if($dsh){$configureArguments+=@('-DshCheckout',$dsh)}
+        $configurePreviewText=(& $powerShell @configureArguments -DryRun -Json)-join "`n"
+        if($LASTEXITCODE -ne 0){throw 'migration-dry-run-failed'}
+        try{$configurePreview=$configurePreviewText|ConvertFrom-Json}catch{throw 'migration-dry-run-returned-invalid-json'}
+        if(-not $Json){$configurePreviewText|Write-Host}
+    }
     if ($DryRun) {
-        Emit ([ordered]@{command='upgrade-and-restart-dsh';status='planned';changes=$changes;issues=@();data=@{confirmationRequired=$true;restartRequired=$true;installPreviewStatus=$preview.status;launcher=$launcher;dshPackage=$(if($dsh){$null}else{$DshPackage})}})
+        Emit ([ordered]@{command='upgrade-and-restart-dsh';status='planned';changes=$changes;issues=@();data=@{confirmationRequired=$true;restartRequired=$true;installPreviewStatus=$preview.status;migrationRequired=$migrationRequired;migrationAuthorized=[bool]$MigrateLegacy;migrationPreviewStatus=$(if($configurePreview){$configurePreview.status}else{$null});activationScope=$(if($migrationRequired){$ActivationScope}else{$null});migrationProfile=$(if($migrationRequired){'all'}else{$null});launcher=$launcher;dshPackage=$(if($dsh){$null}else{$DshPackage})}})
         exit 0
     }
+    if($migrationRequired -and -not $MigrateLegacy){throw 'legacy-migration-confirmation-required; rerun with -MigrateLegacy; nothing was stopped'}
     if ($dsh -and -not (Test-Path -LiteralPath (Join-Path $dsh 'package.json') -PathType Leaf)) { throw 'dsh-checkout-invalid' }
 
     if (-not $ConfirmUpgrade) {
-        $answer = Read-Host 'Type YES to stop DSH Web, install, and restart'
+        $answer = Read-Host $(if($migrationRequired){'Type YES to stop DSH Web, migrate to lazy-domain-v1, install, and restart'}else{'Type YES to stop DSH Web, install, and restart'})
         if ($answer -cne 'YES') {
             Emit ([ordered]@{command='upgrade-and-restart-dsh';status='cancelled';changes=@();issues=@();data=@{modified=$false}})
             exit 0
@@ -106,6 +124,12 @@ try {
     foreach ($process in $processes) { Wait-Process -Id $process.ProcessId -Timeout 15 -ErrorAction SilentlyContinue }
     if (@(Get-DshWebProcess).Count -gt 0) { throw 'dsh-web-did-not-stop; install was not started' }
     $restartNeeded=$processes.Count -gt 0
+    if($migrationRequired){
+        $configureText=(& $powerShell @configureArguments -Json)-join "`n"
+        $configureExitCode=$LASTEXITCODE
+        try{$configureResult=$configureText|ConvertFrom-Json}catch{throw 'migration-returned-invalid-json; DSH Web was not restarted'}
+        if($configureExitCode -ne 0){$detail=@($configureResult.issues)-join ',';throw "$detail; DSH Web was not restarted"}
+    }
     $installText = (& $powerShell @installArguments -Json) -join "`n"
     $installExitCode = $LASTEXITCODE
     try { $installResult = $installText | ConvertFrom-Json } catch { throw 'install-returned-invalid-json; DSH Web was not restarted' }
@@ -123,7 +147,7 @@ try {
         throw "restart-failed:$restartExitCode"
     }
     $restartNeeded=$false
-    Emit ([ordered]@{command='upgrade-and-restart-dsh';status='ok';changes=$changes;issues=@();data=@{port=$Port;launcher=$launcher;trustedHostConfigured=[bool]$TrustedHost;failure=$null}})
+    Emit ([ordered]@{command='upgrade-and-restart-dsh';status='ok';changes=$changes;issues=@();data=@{port=$Port;launcher=$launcher;migratedToLazyDomain=$migrationRequired;trustedHostConfigured=[bool]$TrustedHost;failure=$null}})
 } catch {
     $failure = if ($_.Exception.Data.Contains('Failure')) { $_.Exception.Data['Failure'] } else { $null }
     $restartRecovery='not-required'

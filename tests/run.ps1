@@ -81,6 +81,7 @@ $tempInstaller=Join-Path ([IO.Path]::GetTempPath()) "alfred-installer-$([guid]::
 try{
  @'
 param([switch]$Json)
+[Console]::Error.WriteLine('fixture child log')
 [ordered]@{command='fixture';status='failed';issues=@('install-failed:build');data=@{failure=@{component='fin-value';stage='build';command='npm run build';exitCode=7}}}|ConvertTo-Json -Depth 6
 exit 7
 '@|Set-Content -LiteralPath $tempInstaller -Encoding UTF8
@@ -166,8 +167,17 @@ $statusAfter=& git -C $root status --porcelain
 if(($statusBefore -join "`n") -ne ($statusAfter -join "`n")){throw 'bootstrap dry-run changed repository state'}
 $launcherPreview=(& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/start-dsh-web.ps1') -Port 31999 -DryRun -Json|ConvertFrom-Json)
 if($launcherPreview.status -ne 'planned' -or $launcherPreview.data.launcher -ne 'official-registry-package' -or $launcherPreview.data.dshPackage -ne '@deepseek-ai/dsh@0.1.5-rc.2'){throw 'official DSH launcher preview mismatch'}
-$upgradePreview=(& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/upgrade-and-restart-dsh.ps1') -Port 31999 -DryRun -Json|ConvertFrom-Json)
+$upgradePreview=(& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/upgrade-and-restart-dsh.ps1') -Port 31999 -MigrateLegacy -ActivationScope Project -ProjectRoot $root -DryRun -Json|ConvertFrom-Json)
 if($upgradePreview.status -ne 'planned' -or $upgradePreview.data.launcher -ne 'official-registry-package'){throw 'official DSH upgrade preview mismatch'}
+$installSource=Get-Content -LiteralPath (Join-Path $root 'src/Install.psm1') -Raw
+$configureSource=Get-Content -LiteralPath (Join-Path $root 'src/Configure.psm1') -Raw
+$upgradeSource=Get-Content -LiteralPath (Join-Path $root 'scripts/upgrade-and-restart-dsh.ps1') -Raw
+if($installSource -match "dsh-checkout-required'" ){throw 'official install still requires a source checkout'}
+if($installSource -notmatch "psobject.Properties.Name -contains 'failure'"){throw 'successful official install is not StrictMode-safe'}
+if($configureSource -match 'dsh-checkout-required-for-legacy-migration'){throw 'official migration still requires a source checkout'}
+if($configureSource -notmatch [regex]::Escape("npx --yes '@deepseek-ai/dsh@0.1.5-rc.2' --profile")){throw 'official migration validation launcher missing'}
+if($upgradeSource -notmatch 'if\(\$migrationRequired -and -not \$MigrateLegacy\)' -or $upgradeSource -notmatch '@configureArguments -Json'){throw 'upgrade script does not explicitly authorize and execute migration'}
+if($upgradeSource -notmatch [regex]::Escape("'configure','-Scope',`$ActivationScope,'-Profile','all'")){throw 'upgrade script does not migrate all managed profiles before web install'}
 $recoveryTests=@('preview-alfred-session-events.test.ts','alfred-session-repair-codec.test.ts','alfred-session-repair.test.ts','windows-session-repair-safety.test.ts')|ForEach-Object{Join-Path $PSScriptRoot $_}
 & node --test @recoveryTests
 if($LASTEXITCODE -ne 0){throw 'offline session recovery regression suite failed'}

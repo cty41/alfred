@@ -12,7 +12,7 @@ This runbook switches the existing Web profile from the source-built DSH launche
 powershell -ExecutionPolicy Bypass -File ./tests/run.ps1
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 doctor -Quick -Json
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile web -DryRun -Json
-powershell -ExecutionPolicy Bypass -File ./scripts/upgrade-and-restart-dsh.ps1 -DryRun -Json
+powershell -ExecutionPolicy Bypass -File ./scripts/upgrade-and-restart-dsh.ps1 -MigrateLegacy -ActivationScope Project -ProjectRoot . -DryRun -Json
 ```
 
 4. Copy the current profile control files to a private backup directory outside Git. Preserve `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and `cordis.patch.yml` from each affected profile. Do not print profile configuration values or secrets.
@@ -26,10 +26,11 @@ The isolated official rc.2 startup passed with ALF, plain Fin Value, Mermaid, mo
 From the independent terminal:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ./scripts/upgrade-and-restart-dsh.ps1
+powershell -ExecutionPolicy Bypass -File ./scripts/upgrade-and-restart-dsh.ps1 `
+  -MigrateLegacy -ActivationScope Project -ProjectRoot .
 ```
 
-Type the exact confirmation `YES`. With no `-DshCheckout`, the script installs through and restarts with pinned official DSH `0.1.5-rc.2`. `-DshCheckout` remains an explicit development/rollback override.
+`-MigrateLegacy` is mandatory only while the install preview reports a legacy/scoped activation receipt; omission fails before any process is stopped. Choose `-ActivationScope User` instead when preserving user-wide activation. Type the exact confirmation `YES`. With no `-DshCheckout`, migration, installation, validation, and restart all use pinned official DSH `0.1.5-rc.2`; `-DshCheckout` remains an explicit development override.
 
 Expected Web profile shape:
 

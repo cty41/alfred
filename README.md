@@ -41,12 +41,12 @@ powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope User -Ena
 ./alfred.ps1 update-locks -DryRun -Json # 维护者显式更新 gitlinks
 ```
 
-`bootstrap`、`sync`、`install`、`configure`、`update-locks` 都支持 `-DryRun`；dry-run 不进行网络或文件写入。`update-locks` 在任何子模块 dirty 时拒绝执行。旧安装会报告 `legacy-global` 并保持原行为，只有停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all -DshCheckout <checkout>` 才迁移到 `lazy-domain-v1` per-Agent 模型。配置和能力提示本身都不授权这次迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖仍为 `true` 的用户全局配置，要全局关闭请使用 `-Scope User -Disable`。
+`bootstrap`、`sync`、`install`、`configure`、`update-locks` 都支持 `-DryRun`；dry-run 不进行网络或文件写入。`update-locks` 在任何子模块 dirty 时拒绝执行。旧安装会报告 `legacy-global` 并保持原行为，只有停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all` 才迁移到 `lazy-domain-v1` per-Agent 模型；默认使用固定的官方 DSH，`-DshCheckout` 仅为显式开发覆盖。配置和能力提示本身都不授权这次迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖仍为 `true` 的用户全局配置，要全局关闭请使用 `-Scope User -Disable`。
 
 ## Windows一键启动与升级
 
 - 双击`start-dsh-web.cmd`通过固定的官方 registry package 日常启动现有Web profile；检测到DSH已运行时不会创建第二个实例。显式传 `-DshCheckout` 可回退到源码 launcher。
-- 双击`upgrade-and-restart-dsh.cmd`进行维护升级；脚本先展示安装DryRun，只有输入完整`YES`后才精确停止DSH Web、安装Alfred/Fin Value并重启。
+- 双击`upgrade-and-restart-dsh.cmd`进行常规维护升级；脚本先展示安装DryRun，只有输入完整`YES`后才精确停止DSH Web、安装Alfred/Fin Value并重启。首次从 legacy/scoped 安装迁移时，应从独立终端显式传 `-MigrateLegacy -ActivationScope Project -ProjectRoot <project>`（或选择 `User` scope）；缺少迁移授权会在停止进程前拒绝。
 - 不要在承载当前会话的DSH工具调用中停止自身进程；升级脚本应从独立终端运行。两个CMD只是薄入口，实际错误处理位于`scripts/*.ps1`。
 
 ## 能力发现

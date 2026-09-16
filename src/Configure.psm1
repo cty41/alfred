@@ -147,7 +147,6 @@ function Invoke-AlfredConfigure {
     $legacy=Test-AlfredLegacyGlobalInstall
     if($legacy -and -not $MigrateLegacy){return New-AlfredResult -Command 'configure' -Status 'failed' -Issues @('legacy-migration-confirmation-required') -Data @{scope=$Scope;requiredFlag='MigrateLegacy'}}
     if($MigrateLegacy -and -not $legacy){return New-AlfredResult -Command 'configure' -Status 'failed' -Issues @('legacy-install-not-detected')}
-    if($legacy -and -not $DshCheckout){return New-AlfredResult -Command 'configure' -Status 'failed' -Issues @('dsh-checkout-required-for-legacy-migration')}
     $skills=Join-Path $root 'repos/skills/scripts/install-user.ps1'
     $fin=Join-Path $root 'repos/fin-value/packages/dsh-fin-value/scripts/install-dsh.ps1'
     $alf=Join-Path $root 'packages/dsh-alfred/scripts/install-dsh.ps1'
@@ -184,16 +183,21 @@ function Invoke-AlfredConfigure {
             Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $presetInstaller -Arguments @('-DshHome',$dshHome)|Out-Null
             $profileNames=@($(if($Profile -eq 'all'){@('web','headless')}else{@($Profile)}))
             $profilePatches=@($profileNames|ForEach-Object{Join-Path $dshHome "profiles/$_/cordis.patch.yml"})
-            Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $alf -Arguments @('-Profile',$Profile,'-DshCheckout',$DshCheckout,'-MigrateScoped')|Out-Null
-            Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $fin -Arguments @('-Profile',$Profile,'-DshCheckout',$DshCheckout,'-RuntimeOnly')|Out-Null
+            $alfArguments=@('-Profile',$Profile,'-MigrateScoped')
+            $finArguments=@('-Profile',$Profile,'-RuntimeOnly')
+            if($DshCheckout){$alfArguments+=@('-DshCheckout',$DshCheckout);$finArguments+=@('-DshCheckout',$DshCheckout)}
+            Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $alf -Arguments $alfArguments|Out-Null
+            Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $fin -Arguments $finArguments|Out-Null
             $configPreset=if($presetBackup){Join-Path $presetBackup 'agent.cordis.yml'}else{Join-Path $presetTarget 'agent.cordis.yml'}
             $managedProfiles=@()
             if($receiptSnapshots['alfred-control'].exists){$prior=$receiptSnapshots['alfred-control'].content|ConvertFrom-Json;if($prior.data.psobject.Properties.Name -contains 'managedProfiles'){$managedProfiles=@($prior.data.managedProfiles)}elseif($prior.data.psobject.Properties.Name -contains 'profiles'){$managedProfiles=@($prior.data.profiles)}elseif([string]$prior.data.profile -eq 'all'){$managedProfiles=@('web','headless')}elseif($prior.data.profile){$managedProfiles=@([string]$prior.data.profile)}}
             $managedInstall=@($profileNames|Where-Object{$_ -notin $managedProfiles}).Count -eq 0
             Move-AlfredFinValueConfigToDispatch -ProfilePatches $profilePatches -PresetPath $configPreset -ManagedInstall:$managedInstall
-            Push-Location $DshCheckout
-            try{foreach($name in $profileNames){$null=& npm run dsh -- --profile $name --dump-config 2>&1;if($LASTEXITCODE -ne 0){throw "dispatch profile validation failed: $name"}}}
-            finally{Pop-Location}
+            foreach($name in $profileNames){
+                if($DshCheckout){Push-Location $DshCheckout;try{$null=& npm run dsh -- --profile $name --dump-config 2>&1}finally{Pop-Location}}
+                else{$null=& npx --yes '@deepseek-ai/dsh@0.1.5-rc.2' --profile $name --dump-config 2>&1}
+                if($LASTEXITCODE -ne 0){throw "dispatch profile validation failed: $name"}
+            }
             if($Scope -eq 'Project' -or $Disable){Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $skills -Arguments @('-Scope','User','-Remove')|Out-Null}
         }
         $skillArgs=@('-Scope',$Scope);if($resolvedProject){$skillArgs+=@('-ProjectRoot',$resolvedProject)};if($Disable){$skillArgs+='-Remove'}
