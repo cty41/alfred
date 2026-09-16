@@ -113,6 +113,10 @@ try{
  if(-not(Test-AlfredLegacyGlobalInstall -ReceiptRoot $receiptRoot -DshHome (Join-Path $scopeTemp 'dsh'))){throw 'partial dispatch receipt masked an unmigrated profile'}
  Write-AlfredInstallReceipt -ToolId 'alfred-control' -ReceiptRoot $receiptRoot -Data @{activationModel='dispatch-v1';profile='all';profiles=@('web','headless')}|Out-Null
  if(Test-AlfredLegacyGlobalInstall -ReceiptRoot $receiptRoot -DshHome (Join-Path $scopeTemp 'dsh')){throw 'complete dispatch receipt was misclassified as legacy'}
+ Write-AlfredInstallReceipt -ToolId 'alfred-control' -ReceiptRoot $receiptRoot -Data @{activationModel='lazy-domain-v1';profile='all';profiles=@('web','headless')}|Out-Null
+ '{"dependencies":{"dsh-alfred":"link:alfred","dsh-fin-value":"link:fin"},"dsh":{"profile":{"bundles":["dsh-alfred"]}}}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'dsh/profiles/web/package.json') -Encoding UTF8
+ '{"dependencies":{"dsh-alfred":"link:alfred","dsh-fin-value":"link:fin"},"dsh":{"profile":{"bundles":["dsh-alfred"]}}}'|Set-Content -LiteralPath (Join-Path $scopeTemp 'dsh/profiles/headless/package.json') -Encoding UTF8
+ if(Test-AlfredLegacyGlobalInstall -ReceiptRoot $receiptRoot -DshHome (Join-Path $scopeTemp 'dsh')){throw 'lazy runtime dependency was misclassified as legacy'}
 }finally{Remove-Item -LiteralPath $scopeTemp -Recurse -Force -ErrorAction SilentlyContinue}
 $mac=Get-AlfredReceiptRoot -Platform macos
 if($mac -notmatch 'Library[\\/]Application Support[\\/]alfred'){throw 'macOS receipt path mismatch'}
@@ -160,6 +164,10 @@ $statusBefore=& git -C $root status --porcelain
 & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'alfred.ps1') bootstrap -DryRun -Json|Out-Null
 $statusAfter=& git -C $root status --porcelain
 if(($statusBefore -join "`n") -ne ($statusAfter -join "`n")){throw 'bootstrap dry-run changed repository state'}
+$launcherPreview=(& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/start-dsh-web.ps1') -Port 31999 -DryRun -Json|ConvertFrom-Json)
+if($launcherPreview.status -ne 'planned' -or $launcherPreview.data.launcher -ne 'official-registry-package' -or $launcherPreview.data.dshPackage -ne '@deepseek-ai/dsh@0.1.5-rc.2'){throw 'official DSH launcher preview mismatch'}
+$upgradePreview=(& $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts/upgrade-and-restart-dsh.ps1') -Port 31999 -DryRun -Json|ConvertFrom-Json)
+if($upgradePreview.status -ne 'planned' -or $upgradePreview.data.launcher -ne 'official-registry-package'){throw 'official DSH upgrade preview mismatch'}
 $recoveryTests=@('preview-alfred-session-events.test.ts','alfred-session-repair-codec.test.ts','alfred-session-repair.test.ts','windows-session-repair-safety.test.ts')|ForEach-Object{Join-Path $PSScriptRoot $_}
 & node --test @recoveryTests
 if($LASTEXITCODE -ne 0){throw 'offline session recovery regression suite failed'}

@@ -5,8 +5,8 @@ const QUERY = 'ALF，请检查当前会话可用的增强能力，并区分已�
 const EXAMPLES = ['帮我保存并整理这段对话', '为这个需求制订开发计划', '分析腾讯现在是否值得建仓', '更新这个项目的人工验收记录']
 const SHOW_EVENT = 'dsh-alfred:show-capabilities'
 
-export function isAlfAvailable(preset: unknown, available = false): boolean {
-  return preset !== 'minimal' && available
+export function isAlfAvailable(preset: unknown): boolean {
+  return preset !== 'minimal'
 }
 
 export function presetFromSummary(summary: any): unknown {
@@ -23,7 +23,7 @@ function CapabilityCard(props: any) {
     globalThis.addEventListener?.(SHOW_EVENT, show)
     return () => globalThis.removeEventListener?.(SHOW_EVENT, show)
   }, [])
-  if (!isAlfAvailable(presetFromSummary(summary), summary?.projectionValues?.alfredAvailable === true) || (!summary.blank && !forced) || hidden) return null
+  if (!isAlfAvailable(presetFromSummary(summary)) || (!summary.blank && !forced) || hidden) return null
   return <section style={cardStyle} aria-label="ALF 能力查询入口">
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
       <div><strong>ALF 能力</strong><div style={mutedStyle}>Alfred 会在相关请求中主动使用已接入能力。这里是状态查询入口，不是实时健康监控。</div></div>
@@ -38,7 +38,7 @@ function CapabilityCard(props: any) {
 
 function CapabilityButton(props: any) {
   const summary = props.useSessions((state: any) => state.byId[String(props.sessionId)])
-  if (!isAlfAvailable(presetFromSummary(summary), summary?.projectionValues?.alfredAvailable === true)) return null
+  if (!isAlfAvailable(presetFromSummary(summary))) return null
   return <button type="button" style={buttonStyle} aria-label="打开 ALF 能力入口" onClick={() => globalThis.dispatchEvent?.(new Event(SHOW_EVENT))}>ALF</button>
 }
 

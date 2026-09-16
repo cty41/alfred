@@ -4,14 +4,14 @@
 
 ### MQA-ALF-SCOPED-ACTIVATION
 - Status: `pending`
-- Source: Standard/PTC per-Agent `dispatch-v1` redesign, 2026-09-09
-- Reopen reason: 原验收基于已被用户否决的并列 `alfred` preset 模型；本轮改为 Standard 内附加能力。
-- Action: 完成 `dispatch-v1` 迁移并重启后，刷新 `http://127.0.0.1:3080`。在已启用与未启用项目各新建 Standard 会话，再新建 Minimal；同进程交叉检查工具/Skill。
-- Expected: 已启用项目仍记录 `standard`，但显示 ALF 且可见 ALF/Fin Value/该 scope Skills；未启用 Standard 与全部 Minimal 不可见。创建顺序不污染另一个项目。历史 `alfred` 会话可恢复，但新会话 picker 不显示 Alfred mode。
-- Observe: DSH Web session preset、输入区 ALF 按钮/卡片、工具与 Skill 清单、浏览器 Console，以及脱敏后的 `alfred_capabilities`。
+- Source: Standard/PTC per-Agent `lazy-domain-v1` redesign, 2026-09-16
+- Reopen reason: 激活从 Agent 创建时整包挂载改为相关直接请求触发的按领域加载；Web 可见性不再来自持久 session projection。
+- Action: 按 `official-dsh-migration.md` 从独立终端完成迁移并刷新 `http://127.0.0.1:3080`。在已启用与未启用项目各新建 Standard 会话，再新建 Minimal；先检查能力状态，再在已启用 Standard 输入“查询腾讯港股行情”，最后新建另一个无关 Agent 交叉检查工具清单。
+- Expected: 非 Minimal 会话均有轻量 ALF 入口；未启用项目报告 Fin Value installed 但 ineligible，且不能激活。已启用项目初始 Fin Value inactive，相关请求在同一用户轮次先调用 `alfred_activate`，下一 model step 才出现 `fin_value_*` 并继续原任务。另一个 Agent 不被污染；Minimal 排除。冷恢复后下一次相关请求可重新激活，历史中没有新增 `alfred/*` event。历史 `alfred` 会话可恢复，但新会话 picker 不显示 Alfred mode。
+- Observe: DSH Web session preset、输入区 ALF 按钮/卡片、`alfred_activate` 与领域工具调用顺序、工具/Skill 清单、浏览器 Console，以及脱敏后的 `alfred_capabilities`。
 - Preserve on failure: 项目配置状态、基础 preset、session id、截图、完整错误和去除路径/secrets 后的 Console/工具结果。
 - Save boundary: 先 DryRun；真实迁移会改本机 DSH profile、受管 Skills 链接、receipt、hidden compatibility preset 和所选 `.agents/alfred.json`，不得在当前承载会话内执行。不要确认投资资料库、策略或成交写入。
-- Automated evidence: 39 项 dsh-alfred 测试、Alfred build/PowerShell suite、DSH setup-extension/preset/session/subagent 定向测试与完整 build 已通过；覆盖 create/resume、exact-registration fork/spawn inheritance、Minimal 排除、hidden preset direct resolution、跨 scope Web projection。Fin Value 151 项测试、typecheck/build 与 Skills validator 通过。完整 Web E2E 因本机缺 Playwright Chromium 且多项环境 fixture 失败，不能替代本轮 GUI 人工验收。当前 3080 服务仍为迁移前运行实例，未被停止或替换。
+- Automated evidence: Alfred typecheck/build、64项测试及完整PowerShell suite通过；官方未修改DSH 0.1.5-rc.2的真实Agent-loop测试证明同轮下一step可见领域工具、Agent隔离且不写ALF session event。隔离官方Web profile配置与HTTP 200启动通过；Mermaid、mobile fix、read-image-view、subagent-codex、dsh-codex完成组合/启动验证，机器本地task-notify补齐运行时依赖后亦以独立官方profile返回HTTP 200。Fin Value 162项TypeScript测试、38项Python测试、typecheck/build及两个package dry-run通过。当前3080仍为迁移前实例，GUI行为仍需人工确认。
 - User verdict: none
 
 ### MQA-ALF-SESSION-REPAIR
@@ -29,11 +29,11 @@
 - Status: `pending`
 - Source: ALF control bundle and Fin Value separation implementation, 2026-09-03
 - Action: 不要在承载当前会话的DSH Web内执行停止命令。先保存/结束会话，再从独立终端运行根仓`upgrade-and-restart-dsh.cmd`，核对DryRun摘要后输入完整`YES`；安装成功并恢复服务后刷新`http://127.0.0.1:3080`，在已启用项目新建启用项目的 Standard 会话，展开`ALF`能力入口并点击“检查当前状态”。日常只启动服务时使用`start-dsh-web.cmd`。
-- Expected: 输入区显示 ALF 卡片/按钮；点击只填充草稿、不自动发送；发送后 `alfred_capabilities` 区分声明、源码、构建、安装、配置和当前 runtime visibility，不暴露本机路径或 secrets。
+- Expected: 非 Minimal 输入区显示轻量 ALF 卡片/按钮；点击只填充草稿、不自动发送；发送后 `alfred_capabilities` 还区分按需领域的 installed、eligible、active、failed 和 runtime visibility，不暴露本机路径或 secrets。
 - Observe: DSH Web 输入区、工具调用卡片、浏览器 Console。
 - Preserve on failure: 截图、preset、session id、Console 错误和去除 secrets 后的工具结果。
 - Save boundary: 只读查询；不要执行安装、迁移或账本 commit。
-- Automated evidence: ALF 17 项测试、client bundle build、隔离 DSH `--dump-config`（同时包含 `dsh-alfred` 与 `dsh-fin-value`）通过；2026-09-08 修复残留 ESM client 产物后，完整根 build 再次确认 `dsh-alfred/dist/client.js` 通过 `window.__ModuleLoader__.load` 注册且无顶层 `import`。能力卡片、填充草稿和工具结果仍需人工确认。
+- Automated evidence: ALF 64项测试、client bundle build、官方rc.2隔离profile `--dump-config`和Web HTTP 200启动通过；配置只激活`dsh-alfred/bootstrap`，`dsh-fin-value`保持plain dependency。`dsh-alfred/dist/client.js`保持浏览器loader注册格式。能力卡片、填充草稿和工具结果仍需人工确认。
 - User verdict: 2026-09-08 用户确认刷新后的 DSH Web 不再显示 `Failed to load plugins`；本结论仅覆盖插件加载与页面启动 smoke。
 
 ### MQA-ALF-EXPLICIT-DISPATCH
@@ -107,11 +107,4 @@
 ## Last Emitted Order
 
 1. `MQA-ALF-SCOPED-ACTIVATION`
-2. `MQA-ALF-EXPLICIT-DISPATCH`
-3. `MQA-ALF-SESSION-REPAIR`
-4. `MQA-ALF-WEB-FULL`
-5. `MQA-ALF-PROACTIVE-ROUTING`
-6. `MQA-ALF-WEB-MINIMAL`
-7. `MQA-FIN-RESEARCH-ARCHIVE`
-8. `MQA-FIN-PRIVATE-PERSISTENCE`
-9. `MQA-ALF-HEADLESS-RUNTIME`
+2. `MQA-ALF-WEB-FULL`

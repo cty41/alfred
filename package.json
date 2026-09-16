@@ -4,12 +4,16 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/dsh-alfred"
+    "packages/alfred-core",
+    "packages/dsh-alfred",
+    "packages/mimo-alfred"
   ],
   "scripts": {
     "build": "tsc -b && npm run client:build --workspace dsh-alfred",
     "typecheck": "tsc -b --pretty false && npm run client:typecheck --workspace dsh-alfred",
     "test": "vitest run",
+    "build:core": "tsc -b packages/alfred-core packages/mimo-alfred",
+    "install:mimo-alfred": "node packages/mimo-alfred/dist/install.js",
     "clean": "tsc -b --clean"
   },
   "allowScripts": {

@@ -2,6 +2,7 @@
 param(
     [string]$AlfredCheckout,
     [string]$DshCheckout = $env:DEEPSEEK_HARNESS_CHECKOUT,
+    [string]$DshPackage = '@deepseek-ai/dsh@0.1.5-rc.2',
     [string]$TrustedHost = $env:DSH_TRUSTED_HOST,
     [int]$Port = 3080,
     [switch]$DryRun,
@@ -11,10 +12,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Test-DshRuntimeCommandLine([string]$CommandLine) {
+    if ([string]::IsNullOrWhiteSpace($CommandLine)) { return $false }
+    [bool]($CommandLine -match '(?i)(apps[/\\]cli[/\\]src[/\\]bin\.ts|node_modules[/\\]@deepseek-ai[/\\]dsh[/\\]lib[/\\]bin\.js|@deepseek-ai[/\\]dsh(?:@[^\s]+)?)')
+}
+
 function Get-AllDshProcesses {
     if ($env:OS -ne 'Windows_NT') { throw 'upgrade-and-restart currently requires Windows process inspection' }
     @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
-        [string]$_.CommandLine -match '(apps[/\\]cli[/\\]src[/\\]bin\.ts|@deepseek-ai[/\\]dsh|deepseek-harness).*(\sweb\b|\sheadless\b)'
+        (Test-DshRuntimeCommandLine ([string]$_.CommandLine)) -and [string]$_.CommandLine -match '(?i)(\sweb\b|\sheadless\b)'
     })
 }
 
@@ -24,7 +30,7 @@ function Get-DshWebProcess {
     $owners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object LocalPort -eq $Port | Select-Object -ExpandProperty OwningProcess -Unique)
     if ($owners.Count -eq 0) { return @() }
     @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
-        $owners -contains $_.ProcessId -and [string]$_.CommandLine -match 'apps[/\\]cli[/\\]src[/\\]bin\.ts\s+web(?:\s|$)'
+        $owners -contains $_.ProcessId -and (Test-DshRuntimeCommandLine ([string]$_.CommandLine)) -and [string]$_.CommandLine -match '(?i)\sweb(?:\s|$)'
     })
 }
 
@@ -51,31 +57,38 @@ $launchArguments = $null
 $started = $null
 try {
     if ([string]::IsNullOrWhiteSpace($AlfredCheckout)) { $AlfredCheckout = Split-Path -Parent $PSScriptRoot }
-    if ([string]::IsNullOrWhiteSpace($DshCheckout)) { $DshCheckout = Join-Path (Split-Path -Parent $AlfredCheckout) 'deepseek-harness' }
     $alfred = [IO.Path]::GetFullPath($AlfredCheckout)
-    $dsh = [IO.Path]::GetFullPath($DshCheckout)
+    $dsh = if ([string]::IsNullOrWhiteSpace($DshCheckout)) { $null } else { [IO.Path]::GetFullPath($DshCheckout) }
+    $launcher = if ($dsh) { 'source-checkout' } else { 'official-registry-package' }
     $alfredScript = Join-Path $alfred 'alfred.ps1'
     $startScript = Join-Path $alfred 'scripts/start-dsh-web.ps1'
     $powerShell = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
     if (-not (Test-Path -LiteralPath $alfredScript -PathType Leaf)) { throw 'alfred-checkout-invalid' }
     if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) { throw 'start-script-missing' }
     $quotedStartScript = $startScript.Replace("'", "''")
-    $quotedDsh = $dsh.Replace("'", "''")
     $quotedTrustedHost = ([string]$TrustedHost).Replace("'", "''")
-    $launchCommand = "& '$quotedStartScript' -DshCheckout '$quotedDsh' -TrustedHost '$quotedTrustedHost' -Port $Port"
+    if ($dsh) {
+        $quotedDsh = $dsh.Replace("'", "''")
+        $launchCommand = "& '$quotedStartScript' -DshCheckout '$quotedDsh' -TrustedHost '$quotedTrustedHost' -Port $Port"
+    } else {
+        $quotedPackage = $DshPackage.Replace("'", "''")
+        $launchCommand = "& '$quotedStartScript' -DshPackage '$quotedPackage' -TrustedHost '$quotedTrustedHost' -Port $Port"
+    }
     $encodedLaunchCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launchCommand))
     $launchArguments = @('-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',$encodedLaunchCommand)
 
-    $changes = @('stop only matching DSH web processes','install Alfred and Fin Value into the web profile','restart the existing DSH web profile')
-    $previewText = (& $powerShell -NoProfile -ExecutionPolicy Bypass -File $alfredScript install -Profile web -DshCheckout $dsh -DryRun -Json) -join "`n"
+    $changes = @('stop only matching DSH web processes',"install Alfred and Fin Value into the web profile via $launcher",'restart the existing DSH web profile')
+    $installArguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$alfredScript,'install','-Profile','web')
+    if ($dsh) { $installArguments += @('-DshCheckout',$dsh) }
+    $previewText = (& $powerShell @installArguments -DryRun -Json) -join "`n"
     if ($LASTEXITCODE -ne 0) { throw 'install-dry-run-failed' }
     try { $preview = $previewText | ConvertFrom-Json } catch { throw 'install-dry-run-returned-invalid-json' }
     if (-not $Json) { $previewText | Write-Host }
     if ($DryRun) {
-        Emit ([ordered]@{command='upgrade-and-restart-dsh';status='planned';changes=$changes;issues=@();data=@{confirmationRequired=$true;restartRequired=$true;installPreviewStatus=$preview.status}})
+        Emit ([ordered]@{command='upgrade-and-restart-dsh';status='planned';changes=$changes;issues=@();data=@{confirmationRequired=$true;restartRequired=$true;installPreviewStatus=$preview.status;launcher=$launcher;dshPackage=$(if($dsh){$null}else{$DshPackage})}})
         exit 0
     }
-    if (-not (Test-Path -LiteralPath (Join-Path $dsh 'package.json') -PathType Leaf)) { throw 'dsh-checkout-invalid' }
+    if ($dsh -and -not (Test-Path -LiteralPath (Join-Path $dsh 'package.json') -PathType Leaf)) { throw 'dsh-checkout-invalid' }
 
     if (-not $ConfirmUpgrade) {
         $answer = Read-Host 'Type YES to stop DSH Web, install, and restart'
@@ -93,7 +106,7 @@ try {
     foreach ($process in $processes) { Wait-Process -Id $process.ProcessId -Timeout 15 -ErrorAction SilentlyContinue }
     if (@(Get-DshWebProcess).Count -gt 0) { throw 'dsh-web-did-not-stop; install was not started' }
     $restartNeeded=$processes.Count -gt 0
-    $installText = (& $powerShell -NoProfile -ExecutionPolicy Bypass -File $alfredScript install -Profile web -DshCheckout $dsh -Json) -join "`n"
+    $installText = (& $powerShell @installArguments -Json) -join "`n"
     $installExitCode = $LASTEXITCODE
     try { $installResult = $installText | ConvertFrom-Json } catch { throw 'install-returned-invalid-json; DSH Web was not restarted' }
     if ($installExitCode -ne 0) {
@@ -110,7 +123,7 @@ try {
         throw "restart-failed:$restartExitCode"
     }
     $restartNeeded=$false
-    Emit ([ordered]@{command='upgrade-and-restart-dsh';status='ok';changes=$changes;issues=@();data=@{port=$Port;trustedHostConfigured=[bool]$TrustedHost;failure=$null}})
+    Emit ([ordered]@{command='upgrade-and-restart-dsh';status='ok';changes=$changes;issues=@();data=@{port=$Port;launcher=$launcher;trustedHostConfigured=[bool]$TrustedHost;failure=$null}})
 } catch {
     $failure = if ($_.Exception.Data.Contains('Failure')) { $_.Exception.Data['Failure'] } else { $null }
     $restartRecovery='not-required'

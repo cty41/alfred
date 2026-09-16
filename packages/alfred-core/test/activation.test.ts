@@ -2,8 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { AlfredActivationConfigError, findProjectRoot, resolveAlfredActivation } from '../src/activation.js'
-import { apply as applyBootstrap } from '../src/bootstrap.js'
+import { AlfredActivationConfigError, findProjectRoot, resolveAlfredActivation } from '../src/domain/activation.js'
 
 const roots: string[] = []
 function tempRoot(): string {
@@ -68,33 +67,7 @@ describe('ALF activation configuration', () => {
     const project = tempRoot()
     fs.mkdirSync(path.join(project, '.git'))
     fs.mkdirSync(path.join(project, '.agents'))
-    fs.writeFileSync(path.join(project, '.agents', 'alfred.json'), `\uFEFF${JSON.stringify({ schemaVersion: '1.0', enabled: true })}`)
+    fs.writeFileSync(path.join(project, '.agents', 'alfred.json'), '﻿' + JSON.stringify({ schemaVersion: '1.0', enabled: true }))
     expect(resolveAlfredActivation(project, home)).toEqual({ enabled: true, source: 'project' })
-  })
-
-  it('registers a per-Agent setup extension without selecting a preset', async () => {
-    const home = tempRoot()
-    const project = tempRoot()
-    const other = tempRoot()
-    fs.mkdirSync(path.join(project, '.git'))
-    writeConfig(project, true)
-    let extension: any
-    const finPlugin = { name: 'fin-fixture', apply: () => undefined }
-    applyBootstrap({
-      baseUrl: 'file:///profile/',
-      agents: { registerSetupExtension: (value: unknown) => { extension = value } },
-      loader: { internal: { import: (name: string, base: string) => { expect(name).toBe('dsh-fin-value'); expect(base).toBe('file:///profile/'); return finPlugin } } },
-    } as never, { home, finValue: { timeoutMs: 12345 } })
-    expect(extension.name).toBe('dsh-alfred')
-    const plugins: Array<{ plugin: unknown; config: unknown }> = []
-    const agentCtx = { plugin: async (plugin: unknown, config: unknown) => { plugins.push({ plugin, config }) } }
-    await expect(extension.setup({ agentCtx, cwd: project, preset: 'standard', source: { kind: 'create' } })).resolves.toBe(true)
-    expect(plugins).toHaveLength(2)
-    expect(plugins[1]).toEqual({ plugin: finPlugin, config: { timeoutMs: 12345 } })
-    plugins.length = 0
-    await expect(extension.setup({ agentCtx, cwd: other, preset: 'standard', source: { kind: 'create' } })).resolves.toBe(false)
-    await expect(extension.setup({ agentCtx, cwd: project, preset: 'minimal', source: { kind: 'create' } })).resolves.toBe(false)
-    await expect(extension.setup({ agentCtx, cwd: project, preset: 'alfred', source: { kind: 'resume' } })).resolves.toBe(false)
-    expect(plugins).toEqual([])
   })
 })

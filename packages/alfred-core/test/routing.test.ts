@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { isCapabilityQuestion, matchRoutes } from '../src/catalog.js'
-import { directUserText, isTopLevelHumanAgent, preferredAddressFromText, routeForTurn, routingInstruction } from '../src/routing.js'
+import { isCapabilityQuestion, matchRoutes } from '../src/domain/catalog.js'
+import { directUserText, isTopLevelHumanAgent, preferredAddressFromText, routeForTurn, routingInstruction } from '../src/domain/routing.js'
 
 const human = (text: string) => ({ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseAlfredInvocation } from '../src/trigger.js'
+import { parseAlfredInvocation } from '../src/domain/trigger.js'
 
 describe('Alfred explicit invocation', () => {
   it.each([

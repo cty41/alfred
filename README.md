@@ -10,7 +10,7 @@ Alfred（简称 **ALF**）是个人 Agent 能力栈的总控制面。它固定�
 - `maliang`：可审计游戏美术工作流的只读发现与健康检查；不由 Alfred 代执行或修改资产
 - `packages/dsh-alfred`：ALF persona、`alfred_capabilities`、称呼偏好、意图路由与 Web 能力入口
 
-安装只准备组件，不再等同于对所有会话启用。项目或用户配置会在基础 Standard/PTC preset 挂载后，为该 Agent 的隔离 scope 附加 ALF 与 Fin Value；Minimal 排除，`alfred` preset 只作为 hidden 历史兼容项。项目可用 `<项目>/.agents/alfred.json` 启用，用户可用 `~/.agents/alfred.json` 全局启用。`/alf`、`/alfred`、`alf`、`alfred` 都会先核对当前能力再加载相关领域 Skill。
+安装只准备轻量 ALF dispatcher 和 plain Fin Value runtime，不再等同于对所有会话启用领域能力。项目或用户配置允许相关直接请求通过 `alfred_activate` 将所需领域按需挂入当前 Agent；Minimal 排除，冷恢复后在下一次相关请求重新激活，`alfred` preset 只作为 hidden 历史兼容项。项目可用 `<项目>/.agents/alfred.json` 启用，用户可用 `~/.agents/alfred.json` 全局启用。`/alf`、`/alfred`、`alf`、`alfred` 都会先核对当前能力再加载相关领域 Skill。
 
 ## 快速开始
 
@@ -19,14 +19,14 @@ git clone --recurse-submodules https://github.com/cty41/alfred.git
 cd alfred
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 doctor -Quick
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 bootstrap
-powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all -DshCheckout 'D:\path\to\deepseek-harness'
+powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all
 # 为当前项目启用（新会话生效）
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope Project -ProjectRoot . -Enable
 # 或为当前用户全局启用
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope User -Enable
 ```
 
-macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/python` 已做模拟测试，但尚未在真实 macOS 设备验收。
+默认安装与启动使用固定的官方 `@deepseek-ai/dsh@0.1.5-rc.2` registry launcher，不要求 DSH 源码 checkout；`-DshCheckout` 只作为显式开发/回滚入口。macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/python` 已做模拟测试，但尚未在真实 macOS 设备验收。
 
 ## 命令
 
@@ -41,17 +41,17 @@ macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/p
 ./alfred.ps1 update-locks -DryRun -Json # 维护者显式更新 gitlinks
 ```
 
-`bootstrap`、`sync`、`install`、`configure`、`update-locks` 都支持 `-DryRun`；dry-run 不进行网络或文件写入。`update-locks` 在任何子模块 dirty 时拒绝执行。旧安装会报告 `legacy-global` 并保持原行为，只有停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all -DshCheckout <checkout>` 才迁移到 `dispatch-v1` per-Agent 模型。配置和能力提示本身都不授权这次迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖仍为 `true` 的用户全局配置，要全局关闭请使用 `-Scope User -Disable`。
+`bootstrap`、`sync`、`install`、`configure`、`update-locks` 都支持 `-DryRun`；dry-run 不进行网络或文件写入。`update-locks` 在任何子模块 dirty 时拒绝执行。旧安装会报告 `legacy-global` 并保持原行为，只有停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all -DshCheckout <checkout>` 才迁移到 `lazy-domain-v1` per-Agent 模型。配置和能力提示本身都不授权这次迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖仍为 `true` 的用户全局配置，要全局关闭请使用 `-Scope User -Disable`。
 
 ## Windows一键启动与升级
 
-- 双击`start-dsh-web.cmd`日常启动现有Web profile；检测到DSH已运行时不会创建第二个实例。
+- 双击`start-dsh-web.cmd`通过固定的官方 registry package 日常启动现有Web profile；检测到DSH已运行时不会创建第二个实例。显式传 `-DshCheckout` 可回退到源码 launcher。
 - 双击`upgrade-and-restart-dsh.cmd`进行维护升级；脚本先展示安装DryRun，只有输入完整`YES`后才精确停止DSH Web、安装Alfred/Fin Value并重启。
 - 不要在承载当前会话的DSH工具调用中停止自身进程；升级脚本应从独立终端运行。两个CMD只是薄入口，实际错误处理位于`scripts/*.ps1`。
 
 ## 能力发现
 
-`alfred_capabilities` 只在启用了 ALF 的 Standard/PTC Agent（或 hidden 历史 `alfred` 会话）中注册，并合并根清单、只读Git/文件事实以及DSH实际注册的tools/Skills，分别报告声明、源码、构建、安装、运行时可见性、配置、健康和新鲜度。umbrella探针不执行子模块代码；输出会隐藏本机路径、凭据和receipt内容。
+`alfred_capabilities` 由轻量 dispatcher 在非 Minimal Agent 中提供，并合并根清单、只读Git/文件事实以及DSH实际注册的tools/Skills；按需领域还分别报告 installed、eligible、active、failed 和运行时可见性。umbrella探针不执行子模块代码；输出会隐藏本机路径、凭据和receipt内容。
 
 ALF 只针对顶层直接用户消息做 token-aware 意图匹配，每轮最多提示两个能力，同一会话每项只提示一次。工具消息、插件注入、子 Agent 和自动 continuation 不会触发；提示不构成安装、迁移或写入授权。
 
@@ -66,7 +66,7 @@ npm --prefix ./repos/fin-value run migrate:local-state -- --dry-run --json
 npm --prefix ./repos/fin-value run migrate:local-state -- --profiles-stopped --json
 ```
 
-迁移通过 SQLite checkpoint + `VACUUM INTO` 生成并校验新账本，不覆盖已有目标；市场缓存重建、报告留在原位、待确认 token 不迁移。安装器会在不打印 secrets 的前提下把旧 finance profile/preset 配置按 profile 移入 bootstrap 的 opaque `finValue` 配置；Fin Value bundle 继续保持 profile-inactive，只在启用 Agent scope 内挂载。
+迁移通过 SQLite checkpoint + `VACUUM INTO` 生成并校验新账本，不覆盖已有目标；市场缓存重建、报告留在原位、待确认 token 不迁移。安装器会在不打印 secrets 的前提下把旧 finance profile/preset 配置按 profile 移入 bootstrap 的 opaque `finValue` 配置；`dsh-fin-value` 作为不带 bundle patch 的 plain runtime dependency 保留，只在启用且命中相关意图的 Agent scope 内按需挂载；独立安装使用 `dsh-fin-value-bundle` 才进行 profile-wide 激活。
 
 GitHub 远端仍是 `cty41/fin-alfred`，改名为 `fin-value` 是独立外部操作，必须另行明确确认。
 

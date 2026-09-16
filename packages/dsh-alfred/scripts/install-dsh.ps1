@@ -12,7 +12,7 @@ $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))
 $package=Join-Path $root 'packages\dsh-alfred'
 $profiles=if($Profile -eq 'all'){@('web','headless')}else{@($Profile)}
 if($LegacyGlobal -and $MigrateScoped){throw 'LegacyGlobal and MigrateScoped are mutually exclusive'}
-$changes=@('npm ci --ignore-scripts','npm run build')+@($profiles|ForEach-Object{"link dsh-alfred per-Agent dispatch bootstrap to profile:$_"})+@('install hidden Alfred historical-session compatibility preset')
+$changes=@('npm ci --ignore-scripts','npm run build')+@($profiles|ForEach-Object{"link lightweight dsh-alfred lazy-domain bootstrap to profile:$_"})+@('install hidden Alfred historical-session compatibility preset')
 if($LegacyGlobal){$changes+=@($profiles|ForEach-Object{"preserve legacy global ALF control in profile:$_"})}
 if($MigrateScoped){$changes+=@($profiles|ForEach-Object{"remove managed legacy global ALF control from profile:$_"})}
 function Invoke-Checked([string]$File,[string[]]$Arguments,[string]$WorkingDirectory,[switch]$Silent){
@@ -40,7 +40,7 @@ function Set-LegacyProfileOverride([string]$Name,[bool]$Enabled){
   try{$text+"`n"|Set-Content -LiteralPath $temp -Encoding UTF8 -NoNewline;Move-Item -LiteralPath $temp -Destination $patch -Force}
   finally{Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue}
 }
-if($DryRun){$result=[ordered]@{command='install-dsh-alfred';status='planned';changes=$changes;issues=@();data=@{profiles=$profiles;activationMode=$(if($LegacyGlobal){'legacy-global'}else{'dispatch-v1'});network=$true;writes=$true}}}
+if($DryRun){$result=[ordered]@{command='install-dsh-alfred';status='planned';changes=$changes;issues=@();data=@{profiles=$profiles;activationMode=$(if($LegacyGlobal){'legacy-global'}else{'lazy-domain-v1'});network=$true;writes=$true}}}
 else{
   $old=$env:DSH_HOME;$backups=@()
   try{
@@ -52,7 +52,7 @@ else{
       foreach($file in @('package.json','pnpm-lock.yaml','pnpm-workspace.yaml','cordis.patch.yml')){$source=Join-Path $profilePath $file;$exists=Test-Path -LiteralPath $source -PathType Leaf;if($exists){Copy-Item -LiteralPath $source -Destination (Join-Path $backupPath $file)};$entries+=@{name=$file;exists=$exists}}
       $backups+=@{profilePath=$profilePath;backupPath=$backupPath;entries=$entries}
       if($DshCheckout){$checkout=[IO.Path]::GetFullPath($DshCheckout);Invoke-Checked npm @('run','dsh','--','plugin','--profile',$name,'add',$package) $checkout}
-      else{Invoke-Checked npx @('--yes','@deepseek-ai/dsh@0.1.0-rc.7','plugin','--profile',$name,'add',$package) $root}
+      else{Invoke-Checked npx @('--yes','@deepseek-ai/dsh@0.1.5-rc.2','plugin','--profile',$name,'add',$package) $root}
       if($LegacyGlobal){Set-LegacyProfileOverride -Name $name -Enabled $true}
       elseif($MigrateScoped){Set-LegacyProfileOverride -Name $name -Enabled $false}
       if($DshCheckout){Invoke-Checked npm @('run','dsh','--','--profile',$name,'--dump-config') $checkout -Silent}
@@ -62,7 +62,7 @@ else{
     if($LegacyGlobal){$presetArgs+='-LegacyGlobal'}
     $null=& $powerShell @presetArgs
     if($LASTEXITCODE -ne 0){throw "preset installer exited with code $LASTEXITCODE"}
-    $result=[ordered]@{command='install-dsh-alfred';status='ok';changes=$changes;issues=@();data=@{profiles=$profiles;activationMode=$(if($LegacyGlobal){'legacy-global'}else{'dispatch-v1'});restartRequired=$true}}
+    $result=[ordered]@{command='install-dsh-alfred';status='ok';changes=$changes;issues=@();data=@{profiles=$profiles;activationMode=$(if($LegacyGlobal){'legacy-global'}else{'lazy-domain-v1'});restartRequired=$true}}
   }catch{
     foreach($backup in $backups){try{New-Item -ItemType Directory -Path $backup.profilePath -Force|Out-Null;foreach($entry in $backup.entries){$destination=Join-Path $backup.profilePath $entry.name;if($entry.exists){Copy-Item -LiteralPath (Join-Path $backup.backupPath $entry.name) -Destination $destination -Force}else{Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue}}}catch{}}
     $result=[ordered]@{command='install-dsh-alfred';status='failed';changes=$changes;issues=@($_.Exception.Message);data=@{profiles=$profiles}}

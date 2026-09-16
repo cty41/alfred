@@ -16,11 +16,10 @@ describe('ALF Web capability entry', () => {
     expect(presetFromSummary({ projectionValues: { agentPreset: 'minimal' }, agentPreset: 'alfred' })).toBe('minimal')
   })
 
-  it('shows ALF from actual session availability instead of an Alfred mode', () => {
-    expect(isAlfAvailable('standard')).toBe(false)
-    expect(isAlfAvailable('standard', true)).toBe(true)
-    expect(isAlfAvailable('ptc', true)).toBe(true)
-    expect(isAlfAvailable('alfred', true)).toBe(true)
-    expect(isAlfAvailable('minimal', true)).toBe(false)
+  it('shows the lightweight ALF entry in every non-minimal mode without a durable projection', () => {
+    expect(isAlfAvailable('standard')).toBe(true)
+    expect(isAlfAvailable('ptc')).toBe(true)
+    expect(isAlfAvailable('alfred')).toBe(true)
+    expect(isAlfAvailable('minimal')).toBe(false)
   })
 })

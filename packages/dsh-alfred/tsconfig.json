@@ -9,7 +9,9 @@
     "target": "ES2022",
     "types": ["node", "react"],
     "lib": ["ES2022", "DOM"],
-    "composite": true
+    "composite": true,
+    "paths": { "alfred-core": ["../alfred-core/src/index.ts"] }
   },
+  "references": [{ "path": "../alfred-core" }],
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

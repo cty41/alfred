@@ -1,4 +1,4 @@
 {
   "files": [],
-  "references": [{ "path": "packages/dsh-alfred" }]
+  "references": [{ "path": "packages/alfred-core" }, { "path": "packages/dsh-alfred" }, { "path": "packages/mimo-alfred" }]
 }

@@ -1,0 +1,62 @@
+// managed-by: mimo-alfred
+// Placeholders: {{ALFRED_ROOT}}
+import { AlfredControlRuntime, CapabilityProbe, resolveAlfredActivation } from "../alfred-lib/index.js"
+
+const ALFRED_ROOT = {{ALFRED_ROOT}}
+const turnCounts = new Map<string, number>()
+
+const probe = new CapabilityProbe({ alfredRoot: ALFRED_ROOT, ttlMs: 300_000, timeoutMs: 5_000 })
+const alf = new AlfredControlRuntime({ alfredRoot: ALFRED_ROOT, probe })
+
+function textOf(parts: unknown): string {
+  if (!Array.isArray(parts)) return ""
+  return parts.map((part: any) => (part && typeof part.text === "string" ? part.text : "")).join("\n")
+}
+
+function bumpTurn(sessionID: string): number {
+  const next = (turnCounts.get(sessionID) || 0) + 1
+  turnCounts.set(sessionID, next)
+  return next
+}
+
+function hostSession(input: { sessionID?: string; agentID?: string }, directory: string, turnNumber: number) {
+  const id = String(input.sessionID || "unknown")
+  const agent = String(input.agentID || "build")
+  return {
+    sessionId: id,
+    turnNumber,
+    turnId: id + ":" + turnNumber,
+    agentId: agent,
+    isTopLevelHuman: agent !== "general" && agent !== "explore",
+    isExcludedMode: agent === "plan",
+    cwd: directory,
+    modeName: agent,
+  }
+}
+
+/** Pending routing instruction for the current user query (no persona). */
+let pendingInstruction: string | undefined
+
+export default {
+  "session.userQuery.pre": async (input: any) => {
+    pendingInstruction = undefined
+    const directory = process.cwd()
+    if (!resolveAlfredActivation(directory).enabled) return
+    const query = typeof input?.query === "string" ? input.query : ""
+    if (!query.trim()) return
+    const turn = bumpTurn(String(input?.sessionID || "unknown"))
+    const session = hostSession(input || {}, directory, turn)
+    pendingInstruction = alf.onDirectUserTurn(session, query)
+  },
+  "experimental.chat.messages.transform": async (input: any, output: any) => {
+    if (!pendingInstruction) return
+    const messages = output?.messages
+    if (!Array.isArray(messages)) return
+    const turn = turnCounts.get(String(input?.sessionID || "unknown")) || 0
+    messages.push({
+      info: { role: "user", id: "alf-routing-" + turn },
+      parts: [{ type: "text", text: pendingInstruction }],
+    })
+    pendingInstruction = undefined
+  },
+}

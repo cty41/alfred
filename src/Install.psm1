@@ -36,11 +36,11 @@ function Invoke-AlfredInstall {
     $fin=Resolve-AlfredToolPath -Tool ($manifest.tools|Where-Object id -eq 'fin-value') -Root $root
     $legacy=Test-AlfredLegacyGlobalInstall
     $scripts=@(
-      @{id='fin-value';checkout=$fin;path=(Join-Path $fin 'packages/dsh-fin-value/scripts/install-dsh.ps1');args=@('-Profile',$Profile,'-Inactive')},
+      @{id='fin-value';checkout=$fin;path=(Join-Path $fin 'packages/dsh-fin-value/scripts/install-dsh.ps1');args=@('-Profile',$Profile,'-RuntimeOnly')},
       @{id='alfred-control';checkout=$root;path=(Join-Path $root 'packages/dsh-alfred/scripts/install-dsh.ps1');args=@('-Profile',$Profile)}
     )
-    $changes=@('leave Skills dormant until explicit configure',"install dsh-alfred per-Agent dispatch bootstrap for profile:$Profile","install dsh-fin-value inactive for profile:$Profile",'install only a hidden historical-session compatibility preset','write non-secret minimal receipts; restart DSH manually')
-    if($DryRun){return New-AlfredResult -Command 'install' -Status 'planned' -Changes $changes -Data @{profile=$Profile;activationModel='dispatch-v1';migrationRequired=$legacy;localDshCheckout=[bool]$DshCheckout;privatePersistenceConfigured='not-managed-by-alfred-install';writes=$true;restartRequired=$true}}
+    $changes=@('leave Skills dormant until explicit configure',"install lightweight dsh-alfred dispatch bootstrap for profile:$Profile","install dsh-fin-value as a plain lazy runtime dependency for profile:$Profile",'install only a hidden historical-session compatibility preset','write non-secret minimal receipts; restart DSH manually')
+    if($DryRun){return New-AlfredResult -Command 'install' -Status 'planned' -Changes $changes -Data @{profile=$Profile;activationModel='lazy-domain-v1';migrationRequired=$legacy;localDshCheckout=[bool]$DshCheckout;privatePersistenceConfigured='not-managed-by-alfred-install';writes=$true;restartRequired=$true}}
     if($legacy){return New-AlfredResult -Command 'install' -Status 'failed' -Issues @('legacy-migration-confirmation-required') -Data @{requiredCommand='configure -MigrateLegacy'}}
     if(-not $DshCheckout){return New-AlfredResult -Command 'install' -Status 'failed' -Issues @('dsh-checkout-required')}
     foreach($tool in @($manifest.tools|Where-Object id -in @('skills','fin-value'))){
@@ -76,13 +76,13 @@ function Invoke-AlfredInstall {
           if($exitCode -ne 0){throw 'installer failed'}
         }
         $sourceCommit=(@(& git -C $component.checkout rev-parse HEAD 2>$null)|Select-Object -First 1)
-        Write-AlfredInstallReceipt -ToolId $component.id -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=$sourceCommit;profile=$Profile;profiles=@($(if($Profile -eq 'all'){@('web','headless')}else{@($Profile)}));activationModel='dispatch-v1';restartRequired=($component.id -ne 'skills')}|Out-Null
+        Write-AlfredInstallReceipt -ToolId $component.id -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=$sourceCommit;profile=$Profile;profiles=@($(if($Profile -eq 'all'){@('web','headless')}else{@($Profile)}));activationModel='lazy-domain-v1';restartRequired=($component.id -ne 'skills')}|Out-Null
         $results.Add(@{id=$component.id;status='ok'})
       }
       catch{$issues.Add("install-failed:$($component.id)");$results.Add(@{id=$component.id;status='failed'})}
     }
     $failedComponent=@($results.ToArray()|Where-Object status -eq 'failed'|Select-Object -First 1)
     $failure=if($failedComponent.Count -and $failedComponent[0].failure){$failedComponent[0].failure}else{$null}
-    New-AlfredResult -Command 'install' -Status $(if($issues.Count){'issues'}else{'ok'}) -Changes $changes -Issues $issues.ToArray() -Data @{profile=$Profile;activationModel='dispatch-v1';components=$results.ToArray();privatePersistenceConfigured='not-managed-by-alfred-install';restartRequired=$true;failure=$failure}
+    New-AlfredResult -Command 'install' -Status $(if($issues.Count){'issues'}else{'ok'}) -Changes $changes -Issues $issues.ToArray() -Data @{profile=$Profile;activationModel='lazy-domain-v1';components=$results.ToArray();privatePersistenceConfigured='not-managed-by-alfred-install';restartRequired=$true;failure=$failure}
 }
 Export-ModuleMember -Function Invoke-AlfredInstall,Test-AlfredDshProfileRunning

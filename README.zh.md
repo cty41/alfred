@@ -10,16 +10,16 @@ cd alfred
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 doctor -Quick -Json
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 capabilities -Quick -Json
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 bootstrap
-powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all -DshCheckout 'D:\path\to\deepseek-harness'
+powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all
 # 当前项目启用（新会话生效）
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope Project -ProjectRoot . -Enable
 # 或当前用户全局启用
 powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope User -Enable
 ```
 
-安装只准备组件，不再默认向所有会话开放。项目或用户配置会在基础 Standard/PTC preset 后，为该 Agent 的隔离 scope 附加 ALF 与 Fin Value；Minimal 排除，`alfred` preset 只作为 hidden 历史兼容项。项目配置位于 `<项目>/.agents/alfred.json`，用户全局配置位于 `~/.agents/alfred.json`。`/alf`、`/alfred`、`alf`、`alfred` 都先核对当前能力再加载相关领域 Skill。所有变更命令支持无网络、无文件写入的 `-DryRun`。旧 global/scoped 安装只有在停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all -DshCheckout <checkout>` 才迁移到 `dispatch-v1`；私有 Fin Value 配置按 profile 移入 bootstrap 的 opaque 配置，bundle 本身保持 profile-inactive。配置或能力提示不授权迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖用户全局 `true`。dirty submodule 不会被 reset、clean、stash 或覆盖。
+安装只准备轻量 ALF dispatcher 与 plain Fin Value runtime，不再默认向所有会话开放领域能力。项目或用户配置允许相关直接请求通过 `alfred_activate` 把所需领域按需挂入当前 Agent；Minimal 排除，冷恢复后下一次相关请求重新激活，`alfred` preset 只作为 hidden 历史兼容项。项目配置位于 `<项目>/.agents/alfred.json`，用户全局配置位于 `~/.agents/alfred.json`。`/alf`、`/alfred`、`alf`、`alfred` 都先核对当前能力再加载相关领域 Skill。所有变更命令支持无网络、无文件写入的 `-DryRun`。旧 global/scoped 安装只有在停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all -DshCheckout <checkout>` 才迁移到 `lazy-domain-v1`；私有 Fin Value 配置按 profile 移入 bootstrap 的 opaque 配置，`dsh-fin-value` 作为不带 bundle patch 的 plain dependency 保留。配置或能力提示不授权迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖用户全局 `true`。dirty submodule 不会被 reset、clean、stash 或覆盖。
 
-Windows日常使用可双击`start-dsh-web.cmd`；它检测到Web已运行时不会启动第二个实例。代码升级后双击`upgrade-and-restart-dsh.cmd`，脚本会先展示安装DryRun，只有输入完整`YES`后才精确停止DSH Web、安装并重启。维护脚本必须从独立终端运行，不能让当前DSH会话停止承载自己的进程。
+默认安装与启动使用固定的官方 `@deepseek-ai/dsh@0.1.5-rc.2` registry launcher，不要求源码 checkout；`-DshCheckout` 仅用于显式开发或回滚。Windows日常使用可双击`start-dsh-web.cmd`；它检测到Web已运行时不会启动第二个实例。代码升级后双击`upgrade-and-restart-dsh.cmd`，脚本会先展示安装DryRun，只有输入完整`YES`后才精确停止DSH Web、安装并重启。维护脚本必须从独立终端运行，不能让当前DSH会话停止承载自己的进程。
 
 `dsh-alfred` 提供 ALF persona、`alfred_capabilities`、称呼偏好、意图路由和 Web 能力入口；`fin-value` 只提供港股研究与确认式账本能力。Fin Value 的运行时名称为 `dsh-fin-value` / `fin-value-investment-research` / `fin_value_*`，不保留旧别名。
 

@@ -39,19 +39,19 @@ function Read-AlfredActivationConfig {
 function Test-AlfredLegacyGlobalInstall {
     [CmdletBinding()] param([string]$ReceiptRoot,[string]$DshHome=$(if($env:DSH_HOME){$env:DSH_HOME}else{Join-Path $HOME '.dsh'}))
     try{$receipt=Read-AlfredInstallReceipt -ToolId 'alfred-control' -ReceiptRoot $ReceiptRoot}catch{$receipt=$null}
-    $dispatchProfiles=@()
-    if($null -ne $receipt -and $receipt.data.psobject.Properties.Name -contains 'activationModel' -and [string]$receipt.data.activationModel -eq 'dispatch-v1'){
-        if($receipt.data.psobject.Properties.Name -contains 'profiles'){$dispatchProfiles=@($receipt.data.profiles)}
-        elseif([string]$receipt.data.profile -eq 'all'){$dispatchProfiles=@('web','headless')}
-        elseif($receipt.data.profile){$dispatchProfiles=@([string]$receipt.data.profile)}
+    $managedProfiles=@()
+    if($null -ne $receipt -and $receipt.data.psobject.Properties.Name -contains 'activationModel' -and [string]$receipt.data.activationModel -in @('dispatch-v1','lazy-domain-v1')){
+        if($receipt.data.psobject.Properties.Name -contains 'profiles'){$managedProfiles=@($receipt.data.profiles)}
+        elseif([string]$receipt.data.profile -eq 'all'){$managedProfiles=@('web','headless')}
+        elseif($receipt.data.profile){$managedProfiles=@([string]$receipt.data.profile)}
     }elseif($null -ne $receipt){return $true}
     foreach($profile in @('web','headless')){
         $manifestPath=Join-Path $DshHome "profiles/$profile/package.json"
         if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){continue}
         try{$manifest=Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8|ConvertFrom-Json}catch{continue}
-        $active=@($manifest.dsh.profile.bundles);$inactive=@($manifest.dsh.profile.inactiveBundles)
+        $active=@($manifest.dsh.profile.bundles);$inactive=if($manifest.dsh.profile.psobject.Properties.Name -contains 'inactiveBundles'){@($manifest.dsh.profile.inactiveBundles)}else{@()}
         if($active -contains 'dsh-alfred' -and $active -contains 'dsh-fin-value' -and $inactive -notcontains 'dsh-fin-value'){return $true}
-        if($profile -notin $dispatchProfiles -and $active -contains 'dsh-alfred'){return $true}
+        if($profile -notin $managedProfiles -and $active -contains 'dsh-alfred'){return $true}
     }
     $false
 }
@@ -60,7 +60,7 @@ function Get-AlfredActivationStatus {
     [CmdletBinding()] param([string]$Cwd,[string]$HomePath=$HOME,[string]$ReceiptRoot)
     try{$receipt=Read-AlfredInstallReceipt -ToolId 'alfred-control' -ReceiptRoot $ReceiptRoot}catch{$receipt=$null}
     $activationModel=if($null -ne $receipt -and $receipt.data.psobject.Properties.Name -contains 'activationModel'){[string]$receipt.data.activationModel}else{'unrecorded'}
-    $migrationReason=if($activationModel -notin @('dispatch-v1','unrecorded')){'activation-migration-required'}else{$null}
+    $migrationReason=if($activationModel -notin @('lazy-domain-v1','unrecorded')){'activation-migration-required'}else{$null}
     $userPath=Get-AlfredUserConfigPath -HomePath $HomePath
     $user=Read-AlfredActivationConfig -Path $userPath
     $project=$null

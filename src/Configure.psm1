@@ -154,8 +154,8 @@ function Invoke-AlfredConfigure {
     $presetInstaller=Join-Path $root 'packages/dsh-alfred/scripts/install-preset.ps1'
     foreach($script in @($skills,$fin,$alf,$presetInstaller)){if(-not(Test-Path -LiteralPath $script -PathType Leaf)){return New-AlfredResult -Command 'configure' -Status 'failed' -Issues @("installer-missing:$([IO.Path]::GetFileName($script))")}}
     $changes=@("write $Scope Alfred activation configuration: $(if($Enable){'enable'}else{'disable'})","$(if($Enable){'install'}else{'remove'}) Alfred-managed Skills in $Scope scope")
-    if($legacy){$changes+=@('remove legacy user-global Skill links when moving to project/disabled scope',"keep Fin Value inactive at profile scope for profile:$Profile", "migrate legacy/scoped ALF activation to per-Agent dispatch-v1 for profile:$Profile")}
-    if($DryRun){return New-AlfredResult -Command 'configure' -Status 'planned' -Changes $changes -Data @{scope=$Scope;enabled=[bool]$Enable;legacyMigration=$legacy;profile=$Profile;activationModel='dispatch-v1';writes=$true;restartRequired=$legacy}}
+    if($legacy){$changes+=@('remove legacy user-global Skill links when moving to project/disabled scope',"keep Fin Value as a plain profile dependency for profile:$Profile", "migrate legacy/scoped ALF activation to lazy-domain-v1 for profile:$Profile")}
+    if($DryRun){return New-AlfredResult -Command 'configure' -Status 'planned' -Changes $changes -Data @{scope=$Scope;enabled=[bool]$Enable;legacyMigration=$legacy;profile=$Profile;activationModel='lazy-domain-v1';writes=$true;restartRequired=$legacy}}
     if($legacy -and (Test-AlfredConfigureDshProfileRunning)){return New-AlfredResult -Command 'configure' -Status 'failed' -Issues @('dsh-profile-running')}
 
     $oldExists=Test-Path -LiteralPath $configPath -PathType Leaf;$oldContent=if($oldExists){Get-Content -LiteralPath $configPath -Raw -Encoding UTF8}else{$null}
@@ -185,7 +185,7 @@ function Invoke-AlfredConfigure {
             $profileNames=@($(if($Profile -eq 'all'){@('web','headless')}else{@($Profile)}))
             $profilePatches=@($profileNames|ForEach-Object{Join-Path $dshHome "profiles/$_/cordis.patch.yml"})
             Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $alf -Arguments @('-Profile',$Profile,'-DshCheckout',$DshCheckout,'-MigrateScoped')|Out-Null
-            Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $fin -Arguments @('-Profile',$Profile,'-DshCheckout',$DshCheckout,'-Inactive')|Out-Null
+            Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $fin -Arguments @('-Profile',$Profile,'-DshCheckout',$DshCheckout,'-RuntimeOnly')|Out-Null
             $configPreset=if($presetBackup){Join-Path $presetBackup 'agent.cordis.yml'}else{Join-Path $presetTarget 'agent.cordis.yml'}
             $managedProfiles=@()
             if($receiptSnapshots['alfred-control'].exists){$prior=$receiptSnapshots['alfred-control'].content|ConvertFrom-Json;if($prior.data.psobject.Properties.Name -contains 'managedProfiles'){$managedProfiles=@($prior.data.managedProfiles)}elseif($prior.data.psobject.Properties.Name -contains 'profiles'){$managedProfiles=@($prior.data.profiles)}elseif([string]$prior.data.profile -eq 'all'){$managedProfiles=@('web','headless')}elseif($prior.data.profile){$managedProfiles=@([string]$prior.data.profile)}}
@@ -199,15 +199,15 @@ function Invoke-AlfredConfigure {
         $skillArgs=@('-Scope',$Scope);if($resolvedProject){$skillArgs+=@('-ProjectRoot',$resolvedProject)};if($Disable){$skillArgs+='-Remove'}
         Invoke-AlfredConfigureChild -PowerShell $powerShell -Script $skills -Arguments $skillArgs|Out-Null
         $skillsCheckout=Join-Path $root 'repos/skills'
-        Write-AlfredInstallReceipt -ToolId 'skills' -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=(@(& git -C $skillsCheckout rev-parse HEAD)|Select-Object -First 1);profile='filesystem';activationModel='dispatch-v1';scope=$Scope;enabled=[bool]$Enable;restartRequired=$false}|Out-Null
+        Write-AlfredInstallReceipt -ToolId 'skills' -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=(@(& git -C $skillsCheckout rev-parse HEAD)|Select-Object -First 1);profile='filesystem';activationModel='lazy-domain-v1';scope=$Scope;enabled=[bool]$Enable;restartRequired=$false}|Out-Null
         if($legacy){
             $migratedProfiles=@($profileNames)
-            try{$priorReceipt=Read-AlfredInstallReceipt -ToolId 'alfred-control';if([string]$priorReceipt.data.activationModel -eq 'dispatch-v1'){$migratedProfiles=@($migratedProfiles+@($priorReceipt.data.profiles)|Sort-Object -Unique)}}catch{}
-            Write-AlfredInstallReceipt -ToolId 'alfred-control' -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);profile=$Profile;profiles=$migratedProfiles;managedProfiles=$managedProfiles;activationModel='dispatch-v1';restartRequired=$true}|Out-Null
+            try{$priorReceipt=Read-AlfredInstallReceipt -ToolId 'alfred-control';if([string]$priorReceipt.data.activationModel -in @('dispatch-v1','lazy-domain-v1')){$migratedProfiles=@($migratedProfiles+@($priorReceipt.data.profiles)|Sort-Object -Unique)}}catch{}
+            Write-AlfredInstallReceipt -ToolId 'alfred-control' -Data @{rootCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);sourceCommit=(@(& git -C $root rev-parse HEAD)|Select-Object -First 1);profile=$Profile;profiles=$migratedProfiles;managedProfiles=$managedProfiles;activationModel='lazy-domain-v1';restartRequired=$true}|Out-Null
         }
         foreach($backup in $profileBackups){Remove-Item -LiteralPath $backup.backupPath -Recurse -Force -ErrorAction SilentlyContinue}
         if($presetBackup){Remove-Item -LiteralPath $presetBackup -Recurse -Force -ErrorAction SilentlyContinue}
-        New-AlfredResult -Command 'configure' -Status 'ok' -Changes $changes -Data @{scope=$Scope;enabled=[bool]$Enable;legacyMigration=$legacy;profile=$Profile;activationModel='dispatch-v1';restartRequired=$legacy}
+        New-AlfredResult -Command 'configure' -Status 'ok' -Changes $changes -Data @{scope=$Scope;enabled=[bool]$Enable;legacyMigration=$legacy;profile=$Profile;activationModel='lazy-domain-v1';restartRequired=$legacy}
     }catch{
         if($legacy){
             try{
