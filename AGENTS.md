@@ -1,17 +1,48 @@
-# Alfred repository guidance
+# Agent Skills — authoring rules
 
-Alfred is a public umbrella repository that pins and orchestrates independent tool repositories. Read `docs/architecture.md` before changing module boundaries.
+This repository is a user-level, cross-project skill pack. Every rule below is a
+hard constraint for contributors.
 
-## Boundaries
+## Non-negotiable
 
-- Keep personal vault content, credentials, API tokens, SQLite databases, brokerage data, machine-local profiles, and generated private reports out of this repository.
-- `repos/*` are Git submodules and remain independently owned; do not copy their implementation into the umbrella.
-- Every mutating command supports `-DryRun`; dry-run performs no network or file mutation.
-- Never reset, clean, stash, or overwrite a dirty submodule.
-- Do not push, publish, or create GitHub resources without separate explicit user confirmation.
-- Keep command dispatch allowlisted by repository id and capability. Manifest data must never become arbitrary shell execution.
-- When changes touch `repos/*`, commit inside that submodule first, then pin the root gitlink with `alfred.ps1 commit-modules`. Dry-run first; pass an explicit `-Message` for real runs. Never reset, clean, or stash a submodule to clear dirty state. Do not use `commit-modules` to smuggle unrelated root-repo files.
+1. **Flat only.** A skill is `<skill-name>/SKILL.md` at the repository root.
+   Nested skill groups (e.g. `prod/grill-me/SKILL.md`) are invisible to every
+   standard discoverer (DSH, Codex, OpenCode, Claude) and are rejected by the
+   nesting audit in `scripts/validate.ps1`.
+2. **Portable frontmatter.** `SKILL.md` frontmatter contains exactly
+   `name` and `description`. No tool-specific fields (`allowed-tools`,
+   `argument-hint`, `tools`, …). Tool limits belong in the body.
+3. **Progressive disclosure.** Every skill provides, in order:
+   Quick Reference → When to use → Workflow → Anti-patterns (recommended) →
+   Checklist (recommended).
+4. **No project-specific content.** No mention of Godot/Unity/Tactics/DSH
+   Alfred/investment domains, their paths, tools, or OKF scopes. Project
+   conventions are parameterized in the skill body or mapped by the project's
+   own `AGENTS.md`.
+5. **Nothing sensitive or personal.** No tokens, personal data, machine paths,
+   or machine-specific usernames.
 
-## Verification
+## Gate
 
-Run `powershell -ExecutionPolicy Bypass -File ./tests/run.ps1` and `powershell -ExecutionPolicy Bypass -File ./alfred.ps1 doctor -Quick -Json` before claiming completion.
+`scripts/validate.ps1` must be green before any push:
+
+- `quick_validate` per skill when the skill-creator validator is installed
+  (`~/.codex/skills/.system/skill-creator/scripts/quick_validate.py`);
+- nesting audit (no `SKILL.md` deeper than `<root>/<skill-name>/`);
+- local relative markdown links resolve;
+- OKF-lite unit tests pass.
+
+In this checkout a push also expects `scripts/smoke.ps1` green on the machine(s)
+where the pack is installed — the source of truth always, the links only after
+installation.
+
+## Versioning
+
+Rolling updates; tag releases only when a user needs a stable cut. Update
+consumers by `git pull` + re-running `scripts/install-user.ps1`.
+
+## Attribution
+
+Skills ported from the personal `tactics` repository (MIT). Do not remove the
+attribution note in `README.md`. Third-party material must keep its own
+NOTICE entry (e.g. any deepseek-harness-derived skills).

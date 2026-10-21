@@ -1,81 +1,163 @@
-# Alfred (ALF)
+# Agent Skills
 
-Alfred（简称 **ALF**）是个人 Agent 能力栈的总控制面。它固定并协调四个独立 Git 子模块，安装跨领域的 DSH 控制 bundle，并以可核对的事实展示能力状态；私人知识、凭据和投资账本不进入本仓库。
+User-level agent skills shared across projects (DSH Alfred, Tactics, and any tool
+that reads `~/.agents/skills`: DeepSeek Harness, Codex, OpenCode, Claude Code).
 
-## 默认组件
+## 中文简介
 
-- `knowledge-base-kit`：私人知识库的确定性控制面
-- `skills`：用户级渐进披露 Skills
-- `fin-value`：港股价值研究与确认式本地成交登记领域 bundle
-- `maliang`：可审计游戏美术工作流的只读发现与健康检查；不由 Alfred 代执行或修改资产
-- `packages/dsh-alfred`：ALF persona、`alfred_capabilities`、称呼偏好、意图路由与 Web 能力入口
+本项目是跨项目共享的**用户级 Agent 技能包**（公共仓库 `cty41/skills`，MIT）。通用技能
+（`grill-me`、`grilling`、`skill-writing`、`brainstorming`、`plan-plain`、
+`manual-qa-handoff`、`project-doc-organization`、
+`knowledge-maintenance`、`life-knowledge`、`eli5`）通过 `scripts/install-user.ps1` 全局安装到
+`~/.agents/skills`（Windows 目录 junction，macOS/Linux 符号链接），任何读取用户级
+技能根的工具（DSH、Codex、OpenCode、Claude）在**所有项目**中都能使用。
 
-安装只准备轻量 ALF dispatcher 和 plain Fin Value runtime，不再等同于对所有会话启用领域能力。项目或用户配置允许相关直接请求通过 `alfred_activate` 将所需领域按需挂入当前 Agent；Minimal 排除，冷恢复后在下一次相关请求重新激活，`alfred` preset 只作为 hidden 历史兼容项。项目可用 `<项目>/.agents/alfred.json` 启用，用户可用 `~/.agents/alfred.json` 全局启用。`/alf`、`/alfred`、`alf`、`alfred` 都会先核对当前能力再加载相关领域 Skill。
+规则：技能一律**平铺单层**（`<技能名>/SKILL.md`）；frontmatter 仅 `name` +
+`description`；禁止项目特指内容。当项目本地存在 `.agents/skills/<技能名>` 时，
+本地版本**覆盖**全局安装（DSH 发现顺序：项目级先于用户级）。
 
-## 快速开始
+安装/更新/自测见下节英文命令；OKF-lite 工具调用方式见
+[`knowledge-maintenance`](knowledge-maintenance/SKILL.md) 的「工具定位」。
 
-```powershell
-git clone --recurse-submodules https://github.com/cty41/alfred.git
-cd alfred
-powershell -ExecutionPolicy Bypass -File ./alfred.ps1 doctor -Quick
-powershell -ExecutionPolicy Bypass -File ./alfred.ps1 bootstrap
-powershell -ExecutionPolicy Bypass -File ./alfred.ps1 install -Profile all
-# 为当前项目启用（新会话生效）
-powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope Project -ProjectRoot . -Enable
-# 或为当前用户全局启用
-powershell -ExecutionPolicy Bypass -File ./alfred.ps1 configure -Scope User -Enable
-```
+Everything in this repository is a **flat** skill: `<skill-name>/SKILL.md` at the
+repository root, one level deep. Discoverers (DSH, Codex, OpenCode, Claude) scan
+exactly one level under `~/.agents/skills`, so nested skill groups are invisible
+and forbidden here.
 
-默认安装与启动使用固定的官方 `@deepseek-ai/dsh@0.1.5-rc.2` registry launcher，不要求 DSH 源码 checkout；`-DshCheckout` 只作为显式开发/回滚入口。macOS/Linux 使用同一脚本并由 `pwsh` 运行。macOS 路径与 venv `bin/python` 已做模拟测试，但尚未在真实 macOS 设备验收。
+## Skills
 
-## 命令
+| Skill | Type | Purpose |
+| --- | --- | --- |
+| `grill-me` | User-invoked | Entry point that routes explicit "grill me" requests into a relentless interview |
+| `grilling` | Model/user | The interview engine: grill the user about a plan or design until every branch is resolved |
+| `skill-writing` | Reference | Progressive-disclosure profile for authoring good skills |
+| `brainstorming` | Model/user | Explore a vague request into a confirmed design before implementation (HARD-GATE) |
+| `plan-plain` | Model/user | Generate/land an executable plan and always write a fixed 「人话版」 section so humans can understand it |
+| `make-dev-plan` | Deprecated | Superseded by `plan-plain` (short redirect) |
+| `plan-mode-plan-writer` | Deprecated | Superseded by `plan-plain` (short redirect) |
+| `manual-qa-handoff` | Model/user | Maintain the manual-acceptance ledger after automated gates pass |
+| `project-doc-organization` | Model/user | Keep docs/plans/knowledge short, current, discoverable |
+| `knowledge-maintenance` | Model/user | Query/ingest/supersede the cross-system knowledge index (OKF-lite) |
+| `life-knowledge` | Model/user | Proactively bootstrap and maintain a private life-knowledge vault through the public control kit |
+| `eli5` | Model/user | Explain a topic for a named audience using calibrated vocabulary, analogies, tone, and depth |
 
-```powershell
-./alfred.ps1 doctor -Quick -Json       # 只读健康检查
-./alfred.ps1 capabilities -Quick -Json # 只读能力事实与可操作状态
-./alfred.ps1 bootstrap -DryRun -Json   # 初始化 pinned 子模块并构建
-./alfred.ps1 sync -DryRun -Json        # 对齐当前根仓 gitlinks，不追踪 remote HEAD
-./alfred.ps1 install -Profile all -DryRun -Json
-./alfred.ps1 configure -Scope Project -ProjectRoot . -Enable -DryRun -Json
-./alfred.ps1 configure -Scope User -Disable -DryRun -Json
-./alfred.ps1 update-locks -DryRun -Json # 维护者显式更新 gitlinks
-```
+Rules (not skills): `rules/` — `code-documentation.md`, `agent-worktree.md`,
+`foreground-interaction.md`, `knowledge-maintenance.md`. Global rules such as
+`foreground-interaction` default to deny and are project-configurable.
 
-`bootstrap`、`sync`、`install`、`configure`、`update-locks` 都支持 `-DryRun`；dry-run 不进行网络或文件写入。`update-locks` 在任何子模块 dirty 时拒绝执行。旧安装会报告 `legacy-global` 并保持原行为，只有停止相关 DSH profile 后显式运行 `configure ... -MigrateLegacy -Profile all` 才迁移到 `lazy-domain-v1` per-Agent 模型；默认使用固定的官方 DSH，`-DshCheckout` 仅为显式开发覆盖。配置和能力提示本身都不授权这次迁移。`-Disable` 只移除所选 scope 的正向启用；项目 `false` 不覆盖仍为 `true` 的用户全局配置，要全局关闭请使用 `-Scope User -Disable`。
+## Project conventions (defaults)
 
-## Windows一键启动与升级
+Skills reference these conventional locations; a project maps them in its own
+`AGENTS.md` when it deviates:
 
-- 双击`start-dsh-web.cmd`通过固定的官方 registry package 日常启动现有Web profile；检测到DSH已运行时不会创建第二个实例。显式传 `-DshCheckout` 可回退到源码 launcher。
-- 双击`upgrade-and-restart-dsh.cmd`进行常规维护升级；脚本先展示安装DryRun，只有输入完整`YES`后才精确停止DSH Web、安装Alfred/Fin Value并重启。首次从 legacy/scoped 安装迁移时，应从独立终端显式传 `-MigrateLegacy -ActivationScope Project -ProjectRoot <project>`（或选择 `User` scope）；缺少迁移授权会在停止进程前拒绝。
-- 不要在承载当前会话的DSH工具调用中停止自身进程；升级脚本应从独立终端运行。两个CMD只是薄入口，实际错误处理位于`scripts/*.ps1`。
+- `.agents/docs/` — current authoritative design/usage docs (design outputs from
+  `brainstorming` land here as `YYYY-MM-DD-<topic>-design.md`)
+- `.agents/plans/` — decision-complete plans pending execution
+- `.agents/knowledge/` — OKF-lite index bundle (`index.md`, `log.md`, concepts)
+- `.agents/rules/` — project rules (the pack's `rules/` are portable defaults)
 
-## 能力发现
-
-`alfred_capabilities` 由轻量 dispatcher 在非 Minimal Agent 中提供，并合并根清单、只读Git/文件事实以及DSH实际注册的tools/Skills；按需领域还分别报告 installed、eligible、active、failed 和运行时可见性。umbrella探针不执行子模块代码；输出会隐藏本机路径、凭据和receipt内容。
-
-ALF 只针对顶层直接用户消息做 token-aware 意图匹配，每轮最多提示两个能力，同一会话每项只提示一次。工具消息、插件注入、子 Agent 和自动 continuation 不会触发；提示不构成安装、迁移或写入授权。
-
-首次进行港股研究时，ALF会让Fin Value只读检查小米云研究资料库。未配置时，Fin Value自动检测固定候选目录并生成预览；用户下一轮确认后才创建资料库并保存本机授权，立即生效且无需重启。后续自动归档只允许向已确认目录新增受信官方PDF，不覆盖、删除或接入小米云账号/API。实际路径和财报文件不进入本仓库。
-
-## Fin Value 迁移
-
-领域标识已 breaking rename 为 `fin-value` / `dsh-fin-value` / `fin_value_*`，不提供旧工具或插件别名。迁移本机账本与称呼偏好前先停止相关 DSH profiles：
+## Install (once per machine, Windows / macOS / Linux)
 
 ```powershell
-npm --prefix ./repos/fin-value run migrate:local-state -- --dry-run --json
-npm --prefix ./repos/fin-value run migrate:local-state -- --profiles-stopped --json
+# Windows
+git clone git@github.com:cty41/skills.git D:\codes\agent-skills
+powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\install-user.ps1
+
+# macOS / Linux (pwsh)
+git clone git@github.com:cty41/skills.git ~/codes/agent-skills
+pwsh -File ~/codes/agent-skills/scripts/install-user.ps1
 ```
 
-迁移通过 SQLite checkpoint + `VACUUM INTO` 生成并校验新账本，不覆盖已有目标；市场缓存重建、报告留在原位、待确认 token 不迁移。安装器会在不打印 secrets 的前提下把旧 finance profile/preset 配置按 profile 移入 bootstrap 的 opaque `finValue` 配置；`dsh-fin-value` 作为不带 bundle patch 的 plain runtime dependency 保留，只在启用且命中相关意图的 Agent scope 内按需挂载；独立安装使用 `dsh-fin-value-bundle` 才进行 profile-wide 激活。
+With no arguments, the installer retains the standalone user-level behavior: it
+creates `~/.agents/skills/<name>` links pointing back into this checkout — a
+directory junction on Windows, a symbolic link on macOS/Linux. It is idempotent:
+correct links are kept, while stale or changed links are repaired/pruned **only**
+when their targets are inside this checkout. Real directories/files and links to
+other checkouts are never replaced or removed.
 
-GitHub 远端仍是 `cty41/fin-alfred`，改名为 `fin-value` 是独立外部操作，必须另行明确确认。
+Project-local installation is opt-in. It writes links under
+`<project>/.agents/skills`, where the project is either explicit or the nearest
+`.git` ancestor of the current directory:
 
-## 安全边界
+```powershell
+# Explicit project root
+powershell -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 `
+  -Scope Project -ProjectRoot D:\codes\my-project
 
-- 不连接券商、不自动下单。
-- Fin Value 只有“预览 → 下一轮明确确认 → commit”才能登记已真实发生的成交。
-- 控制清单只允许固定命令标识，不能携带任意 shell 命令。
-- dirty 子模块不会被 reset、clean、stash 或覆盖。
-- 本仓库不输出或提交 vault 内容、数据库、token、profile overlay 或机器路径。
+# Discover the nearest project from the current directory
+powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\install-user.ps1 `
+  -Scope Project
 
-详见 [`docs/architecture.md`](docs/architecture.md) 与 [`SECURITY.md`](SECURITY.md)。
+# Preview either scope without any filesystem mutation; emit machine-readable output
+powershell -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 `
+  -Scope Project -ProjectRoot D:\codes\my-project -DryRun -Json
+
+# Safely uninstall links owned by this checkout
+powershell -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 `
+  -Scope Project -ProjectRoot D:\codes\my-project -Remove
+```
+
+`-Scope User` is the default. `-ProjectRoot` is valid only with `-Scope Project`.
+`-Remove` is compatible with either scope, `-DryRun`, and `-Json`. It scans the
+selected skill root and removes only junctions/symbolic links whose normalized
+targets are inside this checkout, including stale links left by older versions.
+It leaves real files/directories and links to any other location untouched, and
+does not remove the `.agents/skills` directory itself. Re-run the install command
+after `git pull` to refresh the selected installation.
+
+## Update
+
+```powershell
+git -C D:\codes\agent-skills pull
+powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\install-user.ps1
+```
+
+## Self-test
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\validate.ps1   # repo health
+powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\smoke.ps1      # installed state
+```
+
+`validate.ps1` runs per-skill `quick_validate` (when the skill-creator validator is
+present), the flat/nesting audit, local markdown link checks, isolated installer
+install/removal tests, and the OKF-lite unit tests. `smoke.ps1` verifies that every installed link resolves into this
+checkout. It accepts the same `-Scope User|Project` and `-ProjectRoot` selection
+as the installer, plus `-Json`, for example:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1 `
+  -Scope Project -ProjectRoot D:\codes\my-project -Json
+```
+
+## OKF-lite scope vocabulary
+
+`knowledge-maintenance` and `tools/okf-lite` maintain a lightweight knowledge
+index bundle (OKF). Scopes are conventional names subject to change; each
+project maps them in its own `AGENTS.md`. Default scopes:
+
+- `project-documentation` — authoritative design/usage docs
+- `active-plans` — plans still pending execution
+- `project-known-gaps` — evidence-backed unimplemented gaps
+- `code-and-tests` — implementation facts (indexed, never the source of truth)
+
+`tools/okf-lite` implements bundle validation and a trimmed impact report/sync.
+The tools live in this checkout (`tools/okf-lite/`), not inside consuming
+projects: invoke them from `<skills-checkout>` with explicit `--repo-root` and
+`--bundle` (exact commands in `knowledge-maintenance/SKILL.md` "工具定位"). A
+project with its own OKF tooling (e.g. Tactics `Tools/okf`) maps commands in its
+`AGENTS.md` and ignores the defaults. The golden rule: the index summarizes and
+links; it is never the source of truth for current state.
+
+## Authoring rules
+
+See [AGENTS.md](AGENTS.md). In short: flat only; frontmatter is just `name` +
+`description`; progressive disclosure; every new skill must pass
+`quick_validate` and the nesting audit; domain-specific skills stay in their
+own project repositories.
+
+## License
+
+[MIT](LICENSE). Ported and de-coupled from personal project `tactics`
+(`.agents/skills`), MIT. Third-party attributions and imported versions are listed
+in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
