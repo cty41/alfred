@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CapabilityStatus",
+  "type": "object",
+  "required": ["command", "status", "timestamp", "vault", "collections", "runtimeEntryPoints"],
+  "properties": {
+    "command": {"const": "capability-status"},
+    "status": {"const": "ok"},
+    "timestamp": {"type": "string"},
+    "vault": {
+      "type": "object",
+      "required": ["association", "configuration", "available"],
+      "properties": {
+        "association": {"enum": ["associated", "unassociated", "invalid"]},
+        "configuration": {"enum": ["configured", "unconfigured", "unavailable", "invalid", "unknown"]},
+        "available": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "collections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "state"],
+        "properties": {
+          "id": {"type": "string"},
+          "state": {"enum": ["available", "unavailable", "unconfigured"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "runtimeEntryPoints": {"const": "not-assessed"}
+  },
+  "additionalProperties": false
+}
