@@ -7,10 +7,11 @@ it is installed once and is at hand everywhere.
 ## 中文简介
 
 Alfred 是我常用 Skill 的总集合(公共仓库 `cty41/alfred`,MIT)。所有 Skill 平铺在
-仓库根目录(`<技能名>/SKILL.md`),通过 `scripts/install-user.ps1` 链接到
-`~/.agents/skills`(Cursor、Codex、OpenCode)和 `~/.claude/skills`(Claude Code),
-之后在**任何项目**里都能用。是否调用某个 Skill 只取决于它 frontmatter 里的
-`description`,没有额外的路由或激活层。
+仓库根目录(`<技能名>/SKILL.md`),通过 `scripts/install-user.ps1` 默认只链接到
+`~/.agents/skills`(Cursor、Codex、OpenCode),之后在**任何项目**里都能用。
+Claude Code 需要加 `-IncludeClaude` 才会额外链接到 `~/.claude/skills`;因为 Cursor
+同时读取这两个目录,默认两边都装会让每个 Skill 出现两次。是否调用某个 Skill 只由它
+frontmatter 里的 `description` 决定。
 
 需要确定性执行逻辑的 Skill 把脚本放在自己的目录里,例如
 `life-knowledge/kit/`(个人知识库控制工具)和 `audio-transcribe/scripts/`(本地转写)。
@@ -33,7 +34,15 @@ Alfred 是我常用 Skill 的总集合(公共仓库 `cty41/alfred`,MIT)。所有
 | `project-doc-organization` | Keep docs/plans/knowledge short, current, discoverable |
 | `skill-writing` | Progressive-disclosure profile for authoring skills |
 
-Portable rules (not skills) live in `rules/`. Shared tools live in `tools/`.
+Planning skills, in order: use `brainstorming` when a request is vague; once the
+design is confirmed it hands off to `plan-plain`. `make-dev-plan` and
+`plan-mode-plan-writer` are deprecated entries that only redirect to
+`plan-plain`. `grill-me` starts only when the user explicitly asks to be grilled;
+`grilling` is the interview workflow behind it.
+
+`rules/` holds portable rule templates that can be copied into a project's
+`.agents/rules/`; the installer does not install them. Shared tools live in
+`tools/`.
 
 ## Install and update
 
