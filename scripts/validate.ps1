@@ -22,6 +22,10 @@ $repoRoot = (Resolve-Path (Split-Path -Parent $PSScriptRoot)).Path
 $failures = 0
 
 function Write-Step([string]$Message) { Write-Host "[validate] $Message" }
+function Invoke-Python {
+    if (Get-Command uv -ErrorAction SilentlyContinue) { & uv run --quiet --no-project @script:uvWith python @args }
+    else { & python @args }
+}
 function Test-WindowsLike {
     if ($null -ne $IsWindows) { return [bool]$IsWindows }
     return $env:OS -eq 'Windows_NT'
@@ -29,8 +33,9 @@ function Test-WindowsLike {
 
 # --- 1. nesting audit -------------------------------------------------------
 $nested = Get-ChildItem -Path $repoRoot -Recurse -Filter 'SKILL.md' -File | Where-Object {
-    $rel = $_.FullName.Substring($repoRoot.Length + 1)
-    ($rel -split '[\\/]').Count -ne 2
+    $rel = $_.FullName.Substring($repoRoot.Length + 1) -replace '\\', '/'
+    if ($rel.StartsWith('.git/') -or $rel.StartsWith('.worktrees/')) { return $false }
+    ($rel -split '/').Count -ne 2
 }
 if ($nested) {
     Write-Step 'NESTING AUDIT FAILED:'
@@ -49,17 +54,27 @@ if (Test-WindowsLike) {
 } else {
     $validator = Join-Path (Join-Path $HOME '.codex') 'skills/.system/skill-creator/scripts/quick_validate.py'
 }
+$script:uvWith = @('--with', 'pyyaml')
+$previousEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+$yamlReady = $false
 if (Test-Path $validator) {
+    Invoke-Python -c 'import yaml' 2>&1 | Out-Null
+    $yamlReady = $LASTEXITCODE -eq 0
+}
+$ErrorActionPreference = $previousEap
+if (-not $yamlReady) { $script:uvWith = @() }
+if ($yamlReady) {
     $previousEap = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     foreach ($skill in $skillDirs) {
         Write-Step "quick_validate: $($skill.Name)"
-        & python $validator $skill.FullName 2>&1 | ForEach-Object { Write-Host "  $_" }
+        Invoke-Python $validator $skill.FullName 2>&1 | ForEach-Object { Write-Host "  $_" }
         if ($LASTEXITCODE -ne 0) { $failures++ }
     }
     $ErrorActionPreference = $previousEap
 } else {
-    Write-Step 'quick_validate not installed; skipped (validator path checked)'
+    Write-Step 'quick_validate or its pyyaml dependency unavailable; skipped'
 }
 
 # --- 3. relative markdown link check ----------------------------------------
@@ -99,12 +114,41 @@ if (-not $SkipOkf) {
         Write-Step 'OKF-lite unit tests'
         $previousEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
-        & python -m unittest discover -s $okfDir -p 'test_*.py' 2>&1 | ForEach-Object { Write-Host "  $_" }
+        Invoke-Python -m unittest discover -s $okfDir -p 'test_*.py' 2>&1 | ForEach-Object { Write-Host "  $_" }
         $errorActionPreference = $previousEap
         if ($LASTEXITCODE -ne 0) { $failures++ }
     } else {
         Write-Step 'OKF-lite tests not found; skipped'
     }
+}
+
+# --- 6. tests bundled with skills -------------------------------------------
+foreach ($skill in $skillDirs) {
+    $pyTests = @(Get-ChildItem -Path $skill.FullName -Recurse -Filter 'test_*.py' -File)
+    foreach ($dir in @($pyTests | ForEach-Object DirectoryName | Sort-Object -Unique)) {
+        Write-Step "python tests: $($dir.Substring($repoRoot.Length + 1))"
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        Invoke-Python -m unittest discover -s $dir -p 'test_*.py' 2>&1 | ForEach-Object { Write-Host "  $_" }
+        $ErrorActionPreference = $previousEap
+        if ($LASTEXITCODE -ne 0) { $failures++ }
+    }
+
+    $pesterTests = @(Get-ChildItem -Path $skill.FullName -Recurse -Filter '*.Tests.ps1' -File)
+    if ($pesterTests.Count -eq 0) { continue }
+    Write-Step "pester tests: $($skill.Name)"
+    if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.5.0' })) {
+        Write-Host '  [FAIL] Pester 5.5+ is required (Install-Module Pester -Scope CurrentUser)' -ForegroundColor Red
+        $failures++
+        continue
+    }
+    Import-Module Pester -MinimumVersion 5.5.0
+    $config = New-PesterConfiguration
+    $config.Run.Path = @($pesterTests.FullName)
+    $config.Run.PassThru = $true
+    $config.Output.Verbosity = 'Normal'
+    $run = Invoke-Pester -Configuration $config
+    if ($run.FailedCount -gt 0 -or $run.Result -ne 'Passed') { $failures++ }
 }
 
 if ($failures -eq 0) {

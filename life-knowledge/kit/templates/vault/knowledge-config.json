@@ -1,8 +1,7 @@
 {
   "schemaVersion": "1.0",
-  "controlRepository": "https://github.com/cty41/knowledge-base-kit",
-  "skillsRepository": "https://github.com/cty41/skills",
-  "toolCollections": [],
+  "controlRepository": "https://github.com/cty41/alfred",
+  "skillsRepository": "https://github.com/cty41/alfred",
   "managedDirectory": "00_System/managed",
   "contentLanguage": "zh-CN",
   "storageMode": "xiaomi-cloud"

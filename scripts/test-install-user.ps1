@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Exercise install-user.ps1 in isolated temporary project roots.
+    Exercise install-user.ps1 in isolated temporary project roots and HOME.
 #>
 [CmdletBinding()]
 param()
@@ -14,6 +14,9 @@ $isWindowsLike = if ($null -ne $IsWindows) { [bool]$IsWindows } else { $env:OS -
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('skills-installer-test-' + [guid]::NewGuid())
 $projectRoot = Join-Path $tempRoot 'project'
 $outsideRoot = Join-Path $tempRoot 'outside'
+$fakeHome = Join-Path $tempRoot 'home'
+$savedHome = $env:HOME
+$skillsRoot = $null
 
 function Invoke-InstallerJson {
     param([string[]]$Arguments)
@@ -40,11 +43,18 @@ function New-TestLink {
 }
 
 try {
-    New-Item -ItemType Directory -Path $projectRoot, $outsideRoot | Out-Null
+    New-Item -ItemType Directory -Path $projectRoot, $outsideRoot, $fakeHome | Out-Null
+
+    # --- Project scope: agents only, never .claude ---
     $install = Invoke-InstallerJson @('-Scope', 'Project', '-ProjectRoot', $projectRoot, '-Json')
     if (-not $install.ok -or $install.mode -ne 'install') { throw 'Initial project installation did not succeed.' }
 
     $skillsRoot = Join-Path $projectRoot '.agents/skills'
+    $claudeRoot = Join-Path $projectRoot '.claude/skills'
+    if (@($install.targetRoots).Count -ne 1) { throw 'Project install must report exactly one target root.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $skillsRoot 'grill-me/SKILL.md'))) { throw 'Project agents skill root was not populated.' }
+    if (Test-Path -LiteralPath $claudeRoot) { throw 'Project install must not create .claude/skills.' }
+
     $outsideLink = Join-Path $skillsRoot 'eli5'
     Remove-TestLink $outsideLink
     New-TestLink $outsideLink $outsideRoot
@@ -70,12 +80,44 @@ try {
     $again = Invoke-InstallerJson @('-Scope', 'Project', '-ProjectRoot', $projectRoot, '-Remove', '-Json')
     if (-not $again.ok -or $again.removedCount -ne 0) { throw 'Repeated remove was not idempotent.' }
 
+    $projectClaudeReject = & $engine -NoProfile -ExecutionPolicy Bypass -File $installer -Scope Project -ProjectRoot $projectRoot -IncludeClaude -Json
+    if ($LASTEXITCODE -eq 0) { throw 'Project + IncludeClaude should fail.' }
+    $rejectJson = $projectClaudeReject | ConvertFrom-Json
+    if ($rejectJson.ok -or ($rejectJson.error -notmatch 'IncludeClaude')) { throw 'Project + IncludeClaude did not report the expected error.' }
+
+    # --- User scope under a fake HOME ---
+    $env:HOME = $fakeHome
+    $userAgents = Join-Path $fakeHome '.agents/skills'
+    $userClaude = Join-Path $fakeHome '.claude/skills'
+
+    $userDefault = Invoke-InstallerJson @('-Scope', 'User', '-Json')
+    if (-not $userDefault.ok) { throw 'User default install failed.' }
+    if (@($userDefault.targetRoots).Count -ne 1) { throw 'User default must install only ~/.agents/skills.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $userAgents 'grill-me/SKILL.md'))) { throw 'User agents root was not populated.' }
+    if (Test-Path -LiteralPath $userClaude) { throw 'User default must not create ~/.claude/skills.' }
+    if (-not $userDefault.events[0].root) { throw 'Installer events must include root.' }
+
+    $userClaudeInstall = Invoke-InstallerJson @('-Scope', 'User', '-IncludeClaude', '-Json')
+    if (-not $userClaudeInstall.ok) { throw 'User IncludeClaude install failed.' }
+    if (@($userClaudeInstall.targetRoots).Count -ne 2) { throw 'User IncludeClaude must report two target roots.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $userClaude 'grill-me/SKILL.md'))) { throw 'User Claude root was not populated.' }
+
+    $userRemoveAgentsOnly = Invoke-InstallerJson @('-Scope', 'User', '-Remove', '-Json')
+    if (-not $userRemoveAgentsOnly.ok) { throw 'User remove without IncludeClaude failed.' }
+    if (Test-Path -LiteralPath (Join-Path $userAgents 'grill-me')) { throw 'User remove did not clear agents links.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $userClaude 'grill-me'))) { throw 'User remove without IncludeClaude must leave Claude links.' }
+
+    $userRemoveClaude = Invoke-InstallerJson @('-Scope', 'User', '-IncludeClaude', '-Remove', '-Json')
+    if (-not $userRemoveClaude.ok -or $userRemoveClaude.removedCount -lt 1) { throw 'User Remove -IncludeClaude did not clear Claude links.' }
+    if (Test-Path -LiteralPath (Join-Path $userClaude 'grill-me')) { throw 'Claude checkout-owned link was not removed.' }
+
     Write-Host '[test-install-user] PASS' -ForegroundColor Green
     exit 0
 } catch {
     Write-Host "[test-install-user] FAIL: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 } finally {
+    $env:HOME = $savedHome
     if ($skillsRoot -and (Test-Path -LiteralPath $skillsRoot)) { Remove-TestLink (Join-Path $skillsRoot 'eli5') }
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
 }

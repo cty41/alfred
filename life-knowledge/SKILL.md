@@ -1,6 +1,6 @@
 ---
 name: life-knowledge
-description: "Use when a request concerns ongoing personal knowledge, asks to save/organize/archive a conversation, or a personal knowledge vault may be unconfigured or degraded — proactively check vault health, ask only necessary decisions, and delegate deterministic work to knowledge-base-kit."
+description: "Use when a request concerns ongoing personal knowledge, asks to save/organize/archive a conversation, or a personal knowledge vault may be unconfigured or degraded — proactively check vault health, ask only necessary decisions, and delegate deterministic work to the bundled kit."
 ---
 
 # Life Knowledge
@@ -10,9 +10,6 @@ description: "Use when a request concerns ongoing personal knowledge, asks to sa
 | Intent | Agent action |
 |---|---|
 | Relevant first request | Run read-only quick doctor once |
-| Reported optional collections | Cache their declared intents and availability for this conversation |
-| Matching available collection | Route to its advertised domain skill or tool collection |
-| Configured collection unavailable | Prompt at most once; keep ordinary answers unblocked |
 | Missing/degraded configuration | Offer configure now / answer first / suppress this session |
 | Save or organize | Preview target and privacy impact, then confirm |
 | Health check | Run doctor without confirmation |
@@ -32,13 +29,13 @@ Do not trigger for every unrelated one-off question. Do not globally interrupt o
 
 ### Step 1: Bootstrap once per relevant session
 
-Locate the control kit and vault using the kit's discovery order: explicit input, local profile, environment configuration, common locations, then user choice. Run a read-only quick doctor through the kit. Interpret the JSON state using [the onboarding state machine](references/onboarding-state-machine.md).
+The control kit is bundled at `kit/kb.ps1` inside this skill's directory; do not search for it elsewhere. The kit resolves the vault in order: explicit `-VaultPath`, local profile, environment configuration, common locations; ask the user only if none resolves. Run a read-only quick doctor and interpret the JSON state using [the onboarding state machine](references/onboarding-state-machine.md).
 
 ```powershell
-& <kit-path>/kb.ps1 doctor -Quick -Json
+& <this-skill-dir>/kit/kb.ps1 doctor -Quick -Json
 ```
 
-When healthy, continue silently. Remember the result for the current conversation; do not repeat the quick check on every turn. If the doctor report includes optional tool collections, cache only their declared identifiers, intent hints, advertised skill/tool entry points, configuration state, and availability for this conversation. Do not search arbitrary locations or guess collection names.
+When healthy, continue silently. Remember the result for the current conversation; do not repeat the quick check on every turn.
 
 ### Step 2: Ask only for decisions
 
@@ -50,21 +47,11 @@ If unconfigured or degraded, present one concise question with the recommended o
 
 Automatically discover paths and inspect read-only facts. Never ask the user to copy and run command sequences that the Agent can safely execute.
 
-### Step 3: Route reported domain capabilities
+### Step 3: Preserve normal question flow
 
-Compare the current request with the intent hints declared by optional collections in the cached doctor report.
+For ordinary advice or analysis, answer the user's request even if the vault is unconfigured, then offer configuration only when the one-prompt rule permits it. If the user explicitly asks to write, migrate, archive, or upgrade vault content, vault configuration health is a prerequisite for that mutation.
 
-- When a matching collection is already available, hand the domain portion of the request to its advertised skill or tool collection. Follow that capability's own workflow and confirmation rules; do not reproduce its domain logic here.
-- When a matching collection is configured but unavailable, explain the unavailable capability and offer its reported recovery or setup action at most once in the conversation. Record that the prompt was shown. If the user declines, defers, or continues asking, do not prompt again.
-- When no reported collection matches, answer normally with currently available capabilities. Never imply that an unreported or unavailable collection was used.
-
-See [intent routing](references/intent-routing.md) for the generic precedence and fallback rules.
-
-### Step 4: Preserve normal question flow
-
-For ordinary advice or analysis, answer the user's request even if the vault or a matching optional collection is unconfigured or unavailable, then offer configuration only when the one-prompt rule permits it. If the user explicitly asks to write, migrate, archive, or upgrade vault content, vault configuration health is a prerequisite for that mutation. A domain collection's own mutation rules remain authoritative for operations it owns.
-
-### Step 5: Preview mutations
+### Step 4: Preview mutations
 
 Invoke the kit with `-DryRun -Json`, then summarize:
 
@@ -75,7 +62,7 @@ Invoke the kit with `-DryRun -Json`, then summarize:
 
 Ask one confirmation for ordinary writes. Use a separate explicit confirmation for destructive actions or publication.
 
-### Step 6: Execute and verify
+### Step 5: Execute and verify
 
 After confirmation, invoke the deterministic kit command. Run doctor or the relevant verifier afterward. Report the result, changed files, and any unresolved manual review. Never claim persistence if the write or verification failed.
 
@@ -87,8 +74,6 @@ See [intent routing](references/intent-routing.md), [confirmation policy](refere
 |---|---|---|
 | Require memorized commands or trigger phrases | Infer intent and offer a short decision | Agent-first interaction |
 | Prompt on every user message | Bootstrap once per relevant conversation | Avoids nagging |
-| Re-prompt for an unavailable optional collection | Offer its reported recovery once, then preserve fallback | Avoids nagging |
-| Guess a domain integration or reimplement its logic | Route only to an available, reported entry point | Keeps capability ownership clear |
 | Block an ordinary answer on setup | Answer first, then offer setup | Preserves usefulness |
 | Reimplement migration with ad-hoc shell commands | Invoke the versioned kit | Deterministic and testable |
 | Copy raw private data into a public repository | Keep data in the private vault | Enforces the one-way boundary |
@@ -99,9 +84,6 @@ See [intent routing](references/intent-routing.md), [confirmation policy](refere
 - [ ] Relevant-session bootstrap ran at most once
 - [ ] Healthy state continued silently
 - [ ] Missing/degraded state produced one concise choice
-- [ ] Optional collections came only from the control-kit report
-- [ ] Matching available capability received the domain request
-- [ ] A configured-but-unavailable collection prompted at most once
 - [ ] Ordinary question was not needlessly blocked
 - [ ] Mutation used dry-run and preview
 - [ ] Destructive/publication action had separate confirmation

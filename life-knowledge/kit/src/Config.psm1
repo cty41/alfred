@@ -43,44 +43,6 @@ function Assert-KbPathWithin {
     return $pathFull
 }
 
-function Get-KbManagedApplicationPath {
-    param([Parameter(Mandatory)][string]$VaultPath,[Parameter(Mandatory)][ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')][string]$ApplicationId)
-    $config = Read-KbJson (Join-Path $VaultPath 'knowledge-config.json')
-    $managedRelative = if ($config -and $config.managedDirectory) { [string]$config.managedDirectory } else { '00_System/managed' }
-    if ([IO.Path]::IsPathRooted($managedRelative)) { throw 'managedDirectory must be relative to the vault.' }
-    $managed = Assert-KbPathWithin -Root $VaultPath -Path (Join-Path $VaultPath $managedRelative)
-    Assert-KbPathWithin -Root $VaultPath -Path (Join-Path $managed "runtime-data/$ApplicationId")
-}
-
-function Get-KbToolCollections {
-    param([Parameter(Mandatory)][string]$VaultPath)
-    $config = Read-KbJson (Join-Path $VaultPath 'knowledge-config.json')
-    $profile = Read-KbJson (Get-KbProfilePath)
-    $pathMap = if ($profile -and $profile.PSObject.Properties.Name -contains 'toolCollectionPaths') { $profile.toolCollectionPaths } else { $null }
-    $results = [Collections.Generic.List[object]]::new()
-    if (-not $config -or -not ($config.PSObject.Properties.Name -contains 'toolCollections')) { return @() }
-    foreach ($collection in @($config.toolCollections)) {
-        $id = [string]$collection.id
-        $localPath = $null
-        if ($pathMap -and $pathMap.PSObject.Properties.Name -contains $id) { $localPath = [string]$pathMap.$id }
-        $configured = -not [string]::IsNullOrWhiteSpace($localPath)
-        $available = $configured -and (Test-Path -LiteralPath $localPath -PathType Container)
-        $state = if ($available) { 'available' } elseif ($configured) { 'unavailable' } else { 'unconfigured' }
-        $entryPoints = if ($collection.PSObject.Properties.Name -contains 'entryPoints') { $collection.entryPoints } else { [pscustomobject]@{skills=@();tools=@()} }
-        $intents = if ($collection.PSObject.Properties.Name -contains 'intents') { @($collection.intents) } else { @() }
-        $results.Add([pscustomobject]@{
-            id = $id
-            repository = [string]$collection.repository
-            intents = $intents
-            entryPoints = $entryPoints
-            state = $state
-            available = [bool]$available
-            recovery = if ($state -eq 'available') { $null } else { 'Configure or repair this collection through its owning installer.' }
-        })
-    }
-    $results.ToArray()
-}
-
 function Get-KbFileTreeHash {
     param([Parameter(Mandatory)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
@@ -99,4 +61,4 @@ function Get-KbFileTreeHash {
     finally { $sha.Dispose() }
 }
 
-Export-ModuleMember -Function Get-KbProfilePath,Read-KbJson,Write-KbJson,Resolve-KbVaultPath,Assert-KbPathWithin,Get-KbManagedApplicationPath,Get-KbToolCollections,Get-KbFileTreeHash
+Export-ModuleMember -Function Get-KbProfilePath,Read-KbJson,Write-KbJson,Resolve-KbVaultPath,Assert-KbPathWithin,Get-KbFileTreeHash

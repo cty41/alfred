@@ -10,11 +10,11 @@ function Invoke-KbUpgrade {
     $lock=Read-KbJson $lockPath
     $actual=Get-KbFileTreeHash $managed
     if($lock.managedFilesChecksum -and $actual -ne [string]$lock.managedFilesChecksum){throw 'Managed drift detected; review before upgrade.'}
-    $changes=@("replace kit-owned files in $managed","preserve user-owned vault content")
+    $changes=@("replace kit-owned files in $managed","preserve runtime data in $managed\runtime-data","preserve user-owned vault content")
     if($DryRun){return (New-KbResult -Command 'upgrade' -Status 'dry-run' -State 'HEALTHY' -VaultPath $VaultPath -Changes $changes)}
     $backup=Join-Path $VaultPath "00_System\reports\managed-backup-$((Get-Date).ToString('yyyyMMdd-HHmmss'))"
     Copy-Item -LiteralPath $managed -Destination $backup -Recurse
-    Get-ChildItem -LiteralPath $managed -Force | Where-Object {$_.Name -ne 'kit-lock.json'} | Remove-Item -Recurse -Force
+    Get-ChildItem -LiteralPath $managed -Force | Where-Object {$_.Name -notin @('kit-lock.json','runtime-data')} | Remove-Item -Recurse -Force
     Copy-Item -Path (Join-Path $KitPath 'templates\managed\*') -Destination $managed -Recurse -Force
     $commit = try { (git -C $KitPath rev-parse HEAD 2>$null) } catch { $null }
     if(-not $commit){$commit='uncommitted'}

@@ -1,163 +1,84 @@
-# Agent Skills
+# Alfred
 
-User-level agent skills shared across projects (DSH Alfred, Tactics, and any tool
-that reads `~/.agents/skills`: DeepSeek Harness, Codex, OpenCode, Claude Code).
+My personal agent skill pack: the everyday skills I want available in every
+project and every agent. Like Batman's butler, Alfred is not a place you go to;
+it is installed once and is at hand everywhere.
 
 ## 中文简介
 
-本项目是跨项目共享的**用户级 Agent 技能包**（公共仓库 `cty41/skills`，MIT）。通用技能
-（`grill-me`、`grilling`、`skill-writing`、`brainstorming`、`plan-plain`、
-`manual-qa-handoff`、`project-doc-organization`、
-`knowledge-maintenance`、`life-knowledge`、`eli5`）通过 `scripts/install-user.ps1` 全局安装到
-`~/.agents/skills`（Windows 目录 junction，macOS/Linux 符号链接），任何读取用户级
-技能根的工具（DSH、Codex、OpenCode、Claude）在**所有项目**中都能使用。
+Alfred 是我常用 Skill 的总集合(公共仓库 `cty41/alfred`,MIT)。所有 Skill 平铺在
+仓库根目录(`<技能名>/SKILL.md`),通过 `scripts/install-user.ps1` 链接到
+`~/.agents/skills`(Cursor、Codex、OpenCode)和 `~/.claude/skills`(Claude Code),
+之后在**任何项目**里都能用。是否调用某个 Skill 只取决于它 frontmatter 里的
+`description`,没有额外的路由或激活层。
 
-规则：技能一律**平铺单层**（`<技能名>/SKILL.md`）；frontmatter 仅 `name` +
-`description`；禁止项目特指内容。当项目本地存在 `.agents/skills/<技能名>` 时，
-本地版本**覆盖**全局安装（DSH 发现顺序：项目级先于用户级）。
-
-安装/更新/自测见下节英文命令；OKF-lite 工具调用方式见
-[`knowledge-maintenance`](knowledge-maintenance/SKILL.md) 的「工具定位」。
-
-Everything in this repository is a **flat** skill: `<skill-name>/SKILL.md` at the
-repository root, one level deep. Discoverers (DSH, Codex, OpenCode, Claude) scan
-exactly one level under `~/.agents/skills`, so nested skill groups are invisible
-and forbidden here.
+需要确定性执行逻辑的 Skill 把脚本放在自己的目录里,例如
+`life-knowledge/kit/`(个人知识库控制工具)和 `audio-transcribe/scripts/`(本地转写)。
 
 ## Skills
 
-| Skill | Type | Purpose |
-| --- | --- | --- |
-| `grill-me` | User-invoked | Entry point that routes explicit "grill me" requests into a relentless interview |
-| `grilling` | Model/user | The interview engine: grill the user about a plan or design until every branch is resolved |
-| `skill-writing` | Reference | Progressive-disclosure profile for authoring good skills |
-| `brainstorming` | Model/user | Explore a vague request into a confirmed design before implementation (HARD-GATE) |
-| `plan-plain` | Model/user | Generate/land an executable plan and always write a fixed 「人话版」 section so humans can understand it |
-| `make-dev-plan` | Deprecated | Superseded by `plan-plain` (short redirect) |
-| `plan-mode-plan-writer` | Deprecated | Superseded by `plan-plain` (short redirect) |
-| `manual-qa-handoff` | Model/user | Maintain the manual-acceptance ledger after automated gates pass |
-| `project-doc-organization` | Model/user | Keep docs/plans/knowledge short, current, discoverable |
-| `knowledge-maintenance` | Model/user | Query/ingest/supersede the cross-system knowledge index (OKF-lite) |
-| `life-knowledge` | Model/user | Proactively bootstrap and maintain a private life-knowledge vault through the public control kit |
-| `eli5` | Model/user | Explain a topic for a named audience using calibrated vocabulary, analogies, tone, and depth |
+| Skill | Purpose |
+| --- | --- |
+| `audio-transcribe` | Transcribe a local recording with faster-whisper, proofread it, and deliver a full-text translation |
+| `brainstorming` | Explore a vague request into a confirmed design before implementation |
+| `eli5` | Explain a topic for a named audience |
+| `grill-me` | Entry point for explicit "grill me" requests |
+| `grilling` | Interview engine that stress-tests a plan or design |
+| `knowledge-maintenance` | Query/ingest/supersede the cross-system knowledge index (OKF-lite) |
+| `life-knowledge` | Bootstrap and maintain a private life-knowledge vault through its bundled kit |
+| `make-dev-plan` | Deprecated; redirects to `plan-plain` |
+| `manual-qa-handoff` | Maintain the manual-acceptance ledger after automated gates pass |
+| `plan-mode-plan-writer` | Deprecated; redirects to `plan-plain` |
+| `plan-plain` | Generate/land an executable plan with a plain-language section |
+| `project-doc-organization` | Keep docs/plans/knowledge short, current, discoverable |
+| `skill-writing` | Progressive-disclosure profile for authoring skills |
 
-Rules (not skills): `rules/` — `code-documentation.md`, `agent-worktree.md`,
-`foreground-interaction.md`, `knowledge-maintenance.md`. Global rules such as
-`foreground-interaction` default to deny and are project-configurable.
+Portable rules (not skills) live in `rules/`. Shared tools live in `tools/`.
 
-## Project conventions (defaults)
-
-Skills reference these conventional locations; a project maps them in its own
-`AGENTS.md` when it deviates:
-
-- `.agents/docs/` — current authoritative design/usage docs (design outputs from
-  `brainstorming` land here as `YYYY-MM-DD-<topic>-design.md`)
-- `.agents/plans/` — decision-complete plans pending execution
-- `.agents/knowledge/` — OKF-lite index bundle (`index.md`, `log.md`, concepts)
-- `.agents/rules/` — project rules (the pack's `rules/` are portable defaults)
-
-## Install (once per machine, Windows / macOS / Linux)
+## Install and update
 
 ```powershell
-# Windows
-git clone git@github.com:cty41/skills.git D:\codes\agent-skills
-powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\install-user.ps1
-
-# macOS / Linux (pwsh)
-git clone git@github.com:cty41/skills.git ~/codes/agent-skills
-pwsh -File ~/codes/agent-skills/scripts/install-user.ps1
+git clone git@github.com:cty41/alfred.git D:\codes\alfred
+powershell -ExecutionPolicy Bypass -File D:\codes\alfred\scripts\install-user.ps1
 ```
 
-With no arguments, the installer retains the standalone user-level behavior: it
-creates `~/.agents/skills/<name>` links pointing back into this checkout — a
-directory junction on Windows, a symbolic link on macOS/Linux. It is idempotent:
-correct links are kept, while stale or changed links are repaired/pruned **only**
-when their targets are inside this checkout. Real directories/files and links to
-other checkouts are never replaced or removed.
-
-Project-local installation is opt-in. It writes links under
-`<project>/.agents/skills`, where the project is either explicit or the nearest
-`.git` ancestor of the current directory:
+By default the installer links into `~/.agents/skills` only (Cursor, Codex,
+OpenCode). Cursor also reads `~/.claude/skills`, so Claude Code is opt-in to
+avoid duplicate skills:
 
 ```powershell
-# Explicit project root
-powershell -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 `
-  -Scope Project -ProjectRoot D:\codes\my-project
-
-# Discover the nearest project from the current directory
-powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\install-user.ps1 `
-  -Scope Project
-
-# Preview either scope without any filesystem mutation; emit machine-readable output
-powershell -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 `
-  -Scope Project -ProjectRoot D:\codes\my-project -DryRun -Json
-
-# Safely uninstall links owned by this checkout
-powershell -ExecutionPolicy Bypass -File .\scripts\install-user.ps1 `
-  -Scope Project -ProjectRoot D:\codes\my-project -Remove
+powershell -ExecutionPolicy Bypass -File D:\codes\alfred\scripts\install-user.ps1 -IncludeClaude
 ```
 
-`-Scope User` is the default. `-ProjectRoot` is valid only with `-Scope Project`.
-`-Remove` is compatible with either scope, `-DryRun`, and `-Json`. It scans the
-selected skill root and removes only junctions/symbolic links whose normalized
-targets are inside this checkout, including stale links left by older versions.
-It leaves real files/directories and links to any other location untouched, and
-does not remove the `.agents/skills` directory itself. Re-run the install command
-after `git pull` to refresh the selected installation.
+Update with `git pull`, then re-run the installer. The installer is idempotent:
+it keeps correct links, repairs or prunes links that point into this checkout,
+and never replaces real directories or links owned by another checkout. Use
+`-DryRun -Json` to preview, `-Remove` to uninstall (add `-IncludeClaude` when
+removing Claude-root links), and `-Scope Project -ProjectRoot <path>` to install
+into `<project>/.agents/skills` only.
 
-## Update
+Skill-specific prerequisites:
 
-```powershell
-git -C D:\codes\agent-skills pull
-powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\install-user.ps1
-```
+- `audio-transcribe`: `uv` and `ffmpeg` on PATH.
+- `life-knowledge`: Windows PowerShell; the vault path is resolved from
+  `~/.config/life-knowledge/profile.json` or asked for on first use.
 
 ## Self-test
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\validate.ps1   # repo health
-powershell -ExecutionPolicy Bypass -File D:\codes\agent-skills\scripts\smoke.ps1      # installed state
+powershell -ExecutionPolicy Bypass -File .\scripts\validate.ps1   # repository health
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1      # installed state
 ```
 
-`validate.ps1` runs per-skill `quick_validate` (when the skill-creator validator is
-present), the flat/nesting audit, local markdown link checks, isolated installer
-install/removal tests, and the OKF-lite unit tests. `smoke.ps1` verifies that every installed link resolves into this
-checkout. It accepts the same `-Scope User|Project` and `-ProjectRoot` selection
-as the installer, plus `-Json`, for example:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1 `
-  -Scope Project -ProjectRoot D:\codes\my-project -Json
-```
-
-## OKF-lite scope vocabulary
-
-`knowledge-maintenance` and `tools/okf-lite` maintain a lightweight knowledge
-index bundle (OKF). Scopes are conventional names subject to change; each
-project maps them in its own `AGENTS.md`. Default scopes:
-
-- `project-documentation` — authoritative design/usage docs
-- `active-plans` — plans still pending execution
-- `project-known-gaps` — evidence-backed unimplemented gaps
-- `code-and-tests` — implementation facts (indexed, never the source of truth)
-
-`tools/okf-lite` implements bundle validation and a trimmed impact report/sync.
-The tools live in this checkout (`tools/okf-lite/`), not inside consuming
-projects: invoke them from `<skills-checkout>` with explicit `--repo-root` and
-`--bundle` (exact commands in `knowledge-maintenance/SKILL.md` "工具定位"). A
-project with its own OKF tooling (e.g. Tactics `Tools/okf`) maps commands in its
-`AGENTS.md` and ignores the defaults. The golden rule: the index summarizes and
-links; it is never the source of truth for current state.
+`validate.ps1` runs the nesting audit, per-skill `quick_validate` when available,
+markdown link checks, installer tests, OKF-lite tests, and the Pester suites
+bundled with skills (requires Pester 5).
 
 ## Authoring rules
 
-See [AGENTS.md](AGENTS.md). In short: flat only; frontmatter is just `name` +
-`description`; progressive disclosure; every new skill must pass
-`quick_validate` and the nesting audit; domain-specific skills stay in their
-own project repositories.
+See [AGENTS.md](AGENTS.md).
 
 ## License
 
-[MIT](LICENSE). Ported and de-coupled from personal project `tactics`
-(`.agents/skills`), MIT. Third-party attributions and imported versions are listed
-in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). Skills ported from the personal project `tactics`; third-party
+attributions are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

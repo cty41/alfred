@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Position=0,Mandatory)][ValidateSet('init','doctor','capability-status','upgrade','new-project','ingest','archive','scan-private','check-links','backup')][string]$Command,
+    [Parameter(Position=0,Mandatory)][ValidateSet('init','doctor','upgrade','new-project','ingest','archive','scan-private','check-links','backup')][string]$Command,
     [string]$VaultPath,
     [string]$Name,
     [string]$Source,
@@ -20,7 +20,6 @@ Import-Module (Join-Path $kitPath 'src\Discovery.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Reports.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Init.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Doctor.psm1') -Force
-Import-Module (Join-Path $kitPath 'src\CapabilityStatus.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Upgrade.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Migration.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\PrivacyScan.psm1') -Force
@@ -28,21 +27,6 @@ Import-Module (Join-Path $kitPath 'src\Links.psm1') -Force
 Import-Module (Join-Path $kitPath 'src\Backup.psm1') -Force
 
 try {
-    if ($Command -eq 'capability-status') {
-        $result = Invoke-KbCapabilityStatus -VaultPath $VaultPath
-        if ($Json) {
-            $result | ConvertTo-Json -Depth 10
-        }
-        else {
-            "[$($result.status)] $($result.command)"
-            "Vault: association=$($result.vault.association) configuration=$($result.vault.configuration) available=$($result.vault.available)"
-            foreach ($collection in $result.collections) { "Collection $($collection.id): $($collection.state)" }
-            "Runtime entry points: $($result.runtimeEntryPoints)"
-        }
-        $global:LASTEXITCODE = 0
-        return
-    }
-
     $vault=Resolve-KbVaultPath $VaultPath
     switch($Command){
         'init' {
